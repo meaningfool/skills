@@ -22,8 +22,8 @@ mandatory linear workflow:
   tolerant external adapters, plus the boundary-aware Oxlint rules and
   fixtures that enforce them.
 - `install-boundary-aware-anti-slop` composes the pinned generic policy with
-  the boundary-aware plugin, wrappers, safe asset installer, and verification
-  fixtures.
+  the boundary-aware plugin, wrappers, safe asset installer, assessment mode,
+  and verification fixtures.
 - `let-me-see` prepares an environment and manual verification scenarios.
 - `workspace-clean-up` audits and cleans Git worktrees, branches, and stashes.
 - `wrap-up` completes repository work through PR, merge, and cleanup.
@@ -66,3 +66,9 @@ idempotency, and hash-mismatch rejection:
 ```bash
 node scripts/install-pinned-skill.test.mjs
 ```
+
+Assessment mode keeps the complete policy in a separate Oxlint configuration
+and records stable findings and toolchain diagnostics under
+`reports/anti-slop/`. It is selected for audit, assessment, inventory, and
+remediation-planning requests; enforcement is an explicit or clean-assessment
+transition.
