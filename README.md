@@ -53,6 +53,12 @@ node scripts/install-pinned-skill.mjs install \
   --destination .agents/external-skills/install-anti-slop
 ```
 
+This low-level command supports callers that explicitly need a durable
+external dependency installation. The `install-boundary-aware-anti-slop`
+companion skill uses an OS temporary directory for this step and keeps only
+the installed generic Oxlint assets and their provenance in the target
+repository.
+
 The install operation is repeatable at the same revision and leaves an
 unchanged installation untouched. The focused fixture test covers provenance,
 idempotency, and hash-mismatch rejection:
