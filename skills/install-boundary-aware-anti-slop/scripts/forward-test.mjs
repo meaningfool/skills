@@ -99,6 +99,7 @@ try {
   try {
     const versions = readCurrentDependencyVersions();
     const fixtureEvidence = runSharedFixtureChecks(root, versions);
+    const assessmentEvidence = await runAssessmentCriticalPath(root, versions);
 
     for (const manager of managers) {
       for (const config of configStyles) {
@@ -229,6 +230,7 @@ try {
     console.log(`Successful reruns were byte-for-byte stable in ${results.length} state checks.`);
     console.log(`Shared fixture evidence: ${fixtureEvidence.runtime}`);
     console.log(`Oxlint fixture evidence: ${fixtureEvidence.sourceOxlint}`);
+    console.log(`Assessment fixture evidence: ${assessmentEvidence}`);
     console.log(`Dependency evidence: ${dependencyManifest.source}@${dependencyManifest.revision}`);
     console.log(`Oxlint evidence: oxlint@${versions.oxlint}, @oxlint/plugins@${versions.plugins}`);
   } finally {
@@ -310,26 +312,31 @@ function writeInitialConfig(target, config) {
   writeConfig(target, config, base);
 }
 
-function writeForwardChecks(target, config, manager) {
+function writeForwardChecks(target, config, manager, mode = "enforcement") {
   const configFile = config.file.replaceAll("\\", "/");
   const contract = {
     configFile,
     needles: [
-      ...genericRules,
-      ...boundaryRules,
       ...installedIgnores,
-      "anti-slop",
-      "boundary-aware",
-      "./tools/oxlint/anti-slop/index.ts",
-      "./tools/oxlint/boundary-aware/index.mjs",
+      ...(mode === "enforcement" ? [
+        ...genericRules,
+        ...boundaryRules,
+        "anti-slop",
+        "boundary-aware",
+        "./tools/oxlint/anti-slop/index.ts",
+        "./tools/oxlint/boundary-aware/index.mjs",
+      ] : []),
     ],
     required: [
       "tools/oxlint/anti-slop/index.ts",
       "tools/oxlint/anti-slop/.upstream.json",
       "tools/oxlint/boundary-aware/index.mjs",
+      "tools/oxlint/boundary-aware/assessment.mjs",
       "tools/boundary-contracts/boundary-contracts.mjs",
       "tools/boundary-contracts/boundary-contracts.d.ts",
+      ...(mode === "assessment" ? [".oxlint.assessment.json"] : []),
     ],
+    mode,
   };
   writeText(join(target, ".forward/contract.json"), `${JSON.stringify(contract, null, 2)}\n`);
   writeText(
@@ -342,6 +349,7 @@ const mode = process.argv[2];
 const root = process.cwd();
 const contract = JSON.parse(readFileSync(join(root, ".forward/contract.json"), "utf8"));
 const config = readFileSync(join(root, contract.configFile), "utf8");
+const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 for (const needle of contract.needles) assert.equal(config.includes(needle), true, needle);
 for (const required of contract.required) assert.equal(existsSync(join(root, required)), true, required);
@@ -353,6 +361,10 @@ if (mode === "typecheck") {
 }
 if (mode === "format:check") {
   for (const file of textFiles(root)) assert.equal(readFileSync(file, "utf8").endsWith("\\n"), true, file);
+}
+if (contract.mode === "assessment") {
+  assert.equal(typeof packageJson.scripts["anti-slop:assessment"], "string");
+  assert.match(readFileSync(join(root, ".oxlint.assessment.json"), "utf8"), /anti-slop/);
 }
 console.log(mode + " passed");
 
@@ -387,7 +399,7 @@ process.exit(result.status ?? 1);
   chmodSync(shim, 0o755);
 }
 
-async function invokeCompanionSkill(target, versions) {
+async function invokeCompanionSkill(target, versions, mode = "enforcement") {
   const inspection = inspectTarget(target);
   const temporaryRoot = mkdtempSync(join(tmpdir(), "boundary-aware-upstream-"));
   const dependencyDestination = join(temporaryRoot, "install-anti-slop");
@@ -412,11 +424,12 @@ async function invokeCompanionSkill(target, versions) {
     }
 
     const boundary = installBoundaryAssets({ cwd: target });
-    await mergeOxlintConfiguration(target, inspection.config);
-    const checks = runChecks(target, inspection.packageManager);
-    await assertConfiguration(target, inspection.config);
+    await mergeOxlintConfiguration(target, inspection.config, mode);
+    const checks = runChecks(target, inspection.packageManager, mode);
+    await assertConfiguration(target, inspection.config, mode);
     result = {
       inspection,
+      mode,
       dependency: {
         changed: upstreamAction !== "current",
         revision: dependencyRevision,
@@ -608,7 +621,7 @@ function inspectTarget(target) {
   return { packageManager: manager.name, configStyle: config.name, config };
 }
 
-async function mergeOxlintConfiguration(target, config) {
+async function mergeOxlintConfiguration(target, config, mode = "enforcement") {
   const existing = await readConfig(target, config);
   const pluginEntries = [
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
@@ -642,19 +655,47 @@ async function mergeOxlintConfiguration(target, config) {
     rules: { ...(base.rules ?? {}), ...additions.rules },
   });
 
+  const mergeIgnores = (base) => ({
+    ...base,
+    ignorePatterns: unique([...(base.ignorePatterns ?? []), ...installedIgnores]),
+  });
+
   if (config.kind === "vite-plus") {
     const next = {
       ...existing,
-      lint: merge(existing.lint ?? {}),
+      lint: mode === "assessment" ? mergeIgnores(existing.lint ?? {}) : merge(existing.lint ?? {}),
       fmt: {
         ...(existing.fmt ?? {}),
         ignorePatterns: unique([...(existing.fmt?.ignorePatterns ?? []), ...installedIgnores]),
       },
     };
     writeModuleConfig(target, config, next);
+    if (mode === "assessment") writeAssessmentConfig(target, existing.lint ?? {}, merge);
+    if (mode === "assessment") addAssessmentScript(target);
     return;
   }
-  writeConfig(target, config, merge(existing));
+  writeConfig(target, config, mode === "assessment" ? mergeIgnores(existing) : merge(existing));
+  if (mode === "assessment") {
+    writeAssessmentConfig(target, existing, merge);
+    addAssessmentScript(target);
+  }
+}
+
+function writeAssessmentConfig(target, base, merge) {
+  writeIfChanged(
+    join(target, ".oxlint.assessment.json"),
+    `${JSON.stringify(merge(base), null, 2)}\n`,
+  );
+}
+
+function addAssessmentScript(target) {
+  const packagePath = join(target, "package.json");
+  const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+  const scripts = {
+    ...(packageJson.scripts ?? {}),
+    "anti-slop:assessment": "node tools/oxlint/boundary-aware/assessment.mjs",
+  };
+  writeIfChanged(packagePath, `${JSON.stringify({ ...packageJson, scripts }, null, 2)}\n`);
 }
 
 async function readConfig(target, config) {
@@ -707,7 +748,7 @@ function uniqueBySpecifier(values) {
   });
 }
 
-function runChecks(target, managerName) {
+function runChecks(target, managerName, mode = "enforcement") {
   const manager = managers.find((candidate) => candidate.name === managerName);
   assert.ok(manager);
   const commands = {
@@ -719,15 +760,31 @@ function runChecks(target, managerName) {
   const runner = commands[manager.name];
   return ["lint", "typecheck", "format:check"].map((script) => {
     const result = run(runner.command, runner.args(script), target);
-    assertCommand(result, `${manager.name} ${script}`);
-    return { script, command: [runner.command, ...runner.args(script)].join(" "), output: result.stdout.trim() };
+    if (mode !== "assessment") assertCommand(result, `${manager.name} ${script}`);
+    return {
+      script,
+      command: [runner.command, ...runner.args(script)].join(" "),
+      status: result.status,
+      output: `${result.stdout}\n${result.stderr}`.trim(),
+    };
   });
 }
 
-async function assertConfiguration(target, config) {
+async function assertConfiguration(target, config, mode = "enforcement") {
   const source = readFileSync(join(target, config.file), "utf8");
-  for (const needle of [...genericRules, ...boundaryRules, ...installedIgnores]) {
+  const expectedNormalEntries = mode === "assessment"
+    ? installedIgnores
+    : [...genericRules, ...boundaryRules, ...installedIgnores];
+  for (const needle of expectedNormalEntries) {
     assert.match(source, new RegExp(escapeRegExp(needle)), `${config.file}: ${needle}`);
+  }
+  if (mode === "assessment") {
+    assert.doesNotMatch(source, /anti-slop\/no-shape-in-symbol-names/);
+    assert.doesNotMatch(source, /boundary-aware\/require-declared-boundary/);
+    const assessment = readFileSync(join(target, ".oxlint.assessment.json"), "utf8");
+    for (const needle of [...genericRules, ...boundaryRules, ...installedIgnores]) {
+      assert.match(assessment, new RegExp(escapeRegExp(needle)), `.oxlint.assessment.json: ${needle}`);
+    }
   }
   let lintIgnorePatterns = null;
   let formatIgnorePatterns = null;
@@ -824,6 +881,152 @@ async function expectConflict(target, state, pattern, failures) {
     const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
     console.log(`Diagnosed expected ${state}: ${artifact.message}`);
   }
+}
+
+async function runAssessmentCriticalPath(root, versions) {
+  const toolRoot = join(root, "assessment-toolchain");
+  mkdirSync(toolRoot, { recursive: true });
+  const oxlint = join(toolRoot, "node_modules/.bin/oxlint");
+  writeJson(join(toolRoot, "package.json"), {
+    name: "assessment-toolchain",
+    private: true,
+    type: "module",
+  });
+  assertCommand(
+    run(
+      "npm",
+      [
+        "install",
+        "--prefix",
+        toolRoot,
+        "--no-save",
+        "--package-lock=false",
+        `oxlint@${versions.oxlint}`,
+        `@oxlint/plugins@${versions.plugins}`,
+      ],
+      repositoryRoot,
+    ),
+    "install assessment fixture toolchain",
+  );
+
+  const target = join(toolRoot, "assessment");
+  mkdirSync(target, { recursive: true });
+  writeJson(join(target, "package.json"), {
+    name: "assessment-critical-path",
+    private: true,
+    type: "module",
+    packageManager: "npm@10.13.1",
+    scripts: {
+      lint: "node .assessment/checks.mjs lint",
+      typecheck: "node .assessment/checks.mjs typecheck",
+      "format:check": "node .assessment/checks.mjs format:check",
+    },
+    devDependencies: {
+      "@oxlint/plugins": versions.plugins,
+      oxlint: versions.oxlint,
+    },
+  });
+  writeText(join(target, "package-lock.json"), '{"name":"assessment-critical-path","lockfileVersion":3}\n');
+  writeText(join(target, "AGENTS.md"), "Keep this disposable fixture self-contained.\n");
+  writeText(join(target, "notes.md"), "pre-existing unrelated work\n");
+  writeJson(join(target, ".oxlintrc.json"), { ignorePatterns: ["existing/**"] });
+  writeText(
+    join(target, ".assessment/checks.mjs"),
+    String.raw`import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+
+const mode = process.argv[2];
+const oxlint = process.env.OXLINT_BIN ?? ${JSON.stringify(oxlint)};
+
+if (mode === 'lint') {
+  const result = spawnSync(oxlint, ['--config', '.oxlintrc.json', '.'], { stdio: 'inherit' });
+  process.exitCode = result.status ?? 1;
+} else if (existsSync('.assessment/toolchain-change')) {
+  console.error('react/no-direct-mutation-state: introduced by the dependency change');
+  process.exitCode = 1;
+} else {
+  console.log(mode + ' passed');
+}
+`,
+  );
+  writeText(
+    join(target, "src/assessment.ts"),
+    [
+      "import { ownedDecoder, success, tolerantAdapter } from '../tools/boundary-contracts/boundary-contracts.mjs';",
+      "export const decodeShape = ownedDecoder(null, (validated) => validated);",
+      "export const adaptProvider = tolerantAdapter((input: unknown) => success(input));",
+      "const shape = 1;",
+      "export { shape };",
+      "",
+    ].join("\n"),
+  );
+  assertCommand(run("git", ["init", "--quiet"], target), "git init assessment fixture");
+
+  const assessment = await invokeCompanionSkill(target, versions, "assessment");
+  assert.equal(assessment.mode, "assessment");
+  assert.deepEqual(
+    assessment.checks.map(({ script }) => script),
+    ["lint", "typecheck", "format:check"],
+  );
+  const environment = { OXLINT_BIN: oxlint };
+  assertCommand(
+    run(
+      "npm",
+      ["run", "--silent", "anti-slop:assessment", "--", "--capture", "before"],
+      target,
+      environment,
+    ),
+    "capture assessment fixture toolchain before",
+  );
+  writeText(join(target, ".assessment/toolchain-change"), "dependency changed\n");
+  assertCommand(
+    run(
+      "npm",
+      ["run", "--silent", "anti-slop:assessment", "--", "--capture", "after"],
+      target,
+      environment,
+    ),
+    "capture assessment fixture toolchain after",
+  );
+  const policyRun = run("npm", ["run", "--silent", "anti-slop:assessment"], target, environment);
+  assert.notEqual(policyRun.status, 0, "assessment command reports policy findings");
+  const report = JSON.parse(readFileSync(join(target, "reports/anti-slop/assessment.json"), "utf8"));
+  assert.equal(report.mode, "assessment");
+  assert.ok(report.findings.total > 0, "assessment reports findings");
+  assert.ok(Object.keys(report.findings.byRule).some((rule) => rule.startsWith("anti-slop/")));
+  assert.ok(Object.keys(report.findings.byRule).some((rule) => rule.startsWith("boundary-aware/")));
+  assert.equal(
+    Object.values(report.findings.byRule).reduce((total, count) => total + count, 0),
+    report.findings.total,
+  );
+  assert.equal(report.findings.bySeverity.error, report.findings.total);
+  assert.ok(
+    report.toolchainDiagnostics.introduced.some(
+      ({ message }) => message.includes("react/no-direct-mutation-state"),
+    ),
+    "assessment separates introduced React diagnostics",
+  );
+  assert.match(readFileSync(join(target, "reports/anti-slop/assessment.txt"), "utf8"), /Findings:/);
+  assert.equal(run("npm", ["run", "--silent", "lint"], target, environment).status, 0);
+
+  const assessmentSetupBefore = snapshot(target);
+  await invokeCompanionSkill(target, versions, "assessment");
+  assert.deepEqual(snapshot(target), assessmentSetupBefore, "assessment setup is idempotent");
+
+  writeText(
+    join(target, "src/assessment.ts"),
+    "export const assessmentValue = 1;\n",
+  );
+  rmSync(join(target, ".assessment/toolchain-change"));
+  const enforcement = await invokeCompanionSkill(target, versions, "enforcement");
+  assert.equal(enforcement.mode, "enforcement");
+  assertChecks(enforcement, "assessment critical path enforcement");
+  assert.equal(run("npm", ["run", "--silent", "lint"], target, environment).status, 0);
+  const enforcementSetupBefore = snapshot(target);
+  await invokeCompanionSkill(target, versions, "enforcement");
+  assert.deepEqual(snapshot(target), enforcementSetupBefore, "enforcement setup is idempotent");
+  assertNoExternalInstall(target, "assessment critical path");
+  return `assessment findings=${report.findings.total}, introduced toolchain diagnostics=${report.toolchainDiagnostics.introduced.length}, enforcement clean`;
 }
 
 function runSharedFixtureChecks(root, versions) {
@@ -940,6 +1143,10 @@ function writeText(path, content) {
   writeFileSync(path, content);
 }
 
+function writeJson(path, value) {
+  writeText(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function writeIfChanged(path, content) {
   if (existsSync(path) && readFileSync(path, "utf8") === content) return false;
   writeText(path, content);
@@ -954,11 +1161,11 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function run(command, args, cwd) {
+function run(command, args, cwd, extraEnv = {}) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, CI: "1" },
+    env: { ...process.env, ...extraEnv, CI: "1" },
   });
   return {
     status: result.status ?? 1,

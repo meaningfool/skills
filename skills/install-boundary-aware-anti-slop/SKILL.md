@@ -1,6 +1,6 @@
 ---
 name: install-boundary-aware-anti-slop
-description: Install the pinned generic anti-slop policy together with the boundary-aware Oxlint plugin and boundary wrappers. Use when a TypeScript or JavaScript repository needs anti-slop enforcement that distinguishes owned schema-backed inputs from tolerant external adapters, or when an existing anti-slop installation must be migrated to that policy.
+description: Install or assess the pinned generic anti-slop policy together with the boundary-aware Oxlint plugin and boundary wrappers. Use when a TypeScript or JavaScript repository needs anti-slop enforcement, an audit or assessment, an inventory, or a remediation plan that distinguishes owned schema-backed inputs from tolerant external adapters, or when an existing anti-slop installation must be migrated to that policy.
 ---
 
 # Install boundary-aware anti-slop
@@ -36,6 +36,17 @@ existing installation cannot be identified as managed.
 Do not ask a question when a convention can be inferred. Use the target's
 existing tooling directory when one is clear; otherwise use the deterministic
 defaults `tools/oxlint/boundary-aware/` and `tools/boundary-contracts/`.
+
+## Choose the mode
+
+Infer the mode from the request before changing the target configuration:
+
+- Use assessment mode for audit, assessment, inventory, or remediation-planning requests. Assessment reports findings without enabling the policy in normal lint.
+- Use enforcement mode only when the user explicitly requests enforcement or when a complete assessment has passed. A target with existing findings remains in assessment mode.
+- In assessment mode, add only the narrow managed-asset ignores to the normal checks. Keep its existing plugins, rules, and severities unchanged. Put the complete anti-slop policy in a separate Oxlint configuration.
+- In enforcement mode, merge the complete policy into normal lint at its intended severities. Keep the installed assets and their provenance unchanged when they are current.
+
+Do not turn an assessment into a baseline. Every finding remains an active finding until its source is repaired, and assessment mode never adds suppressions, lowers a severity, or records accepted violations.
 
 ## Compose the pinned dependency
 
@@ -104,8 +115,9 @@ anti-slop/require-safety-comment-for-type-assertion
 
 Run the bundled deterministic installer from the target repository. The
 installer owns the assets in [boundary-contracts.mjs](references/boundary-contracts.mjs),
-[boundary-contracts.d.ts](references/boundary-contracts.d.ts), and the
-[boundary-aware Oxlint plugin](references/oxlint/index.mjs):
+[boundary-contracts.d.ts](references/boundary-contracts.d.ts), the
+[boundary-aware Oxlint plugin](references/oxlint/index.mjs), and the assessment
+runner:
 
 ```bash
 node <this-skill-directory>/scripts/install.mjs
@@ -113,7 +125,7 @@ node <this-skill-directory>/scripts/install.mjs
 
 Use `--destination` and `--runtime-destination` only when the target has an
 established equivalent tooling layout. The installer copies only the owned
-boundary plugin, wrappers, and TypeScript declarations. It records
+boundary plugin, assessment runner, wrappers, and TypeScript declarations. It records
 `.boundary-aware.json` provenance beside each component, stages updates before
 replacement, and preserves unrelated files in those directories.
 
@@ -157,9 +169,11 @@ same installation must make no file or ordering changes.
 
 ### Standalone Oxlint
 
-Merge the managed paths into `ignorePatterns` in the target's existing
-`.oxlintrc.*` or `oxlint.config.*` file, preserving its JSON/JSONC or
-JavaScript/TypeScript module style. Do not replace the configuration object.
+For enforcement, merge the managed paths, plugins, settings, and rules into
+the target's existing `.oxlintrc.*` or `oxlint.config.*` file, preserving its
+JSON/JSONC or JavaScript/TypeScript module style. Do not replace the
+configuration object. For assessment, merge only the managed paths into this
+normal configuration and use the separate assessment configuration below.
 
 ```json
 {
@@ -188,8 +202,10 @@ JavaScript/TypeScript module style. Do not replace the configuration object.
 If the plugin was installed at another path, use that path in `specifier` and
 in the installed-assets ignore. If aliases already exist in the target,
 preserve them and configure the exact names used by the target wrappers. For
-Vite+, merge `jsPlugins`, `settings`, and `rules` inside `lint` and place the
-managed paths in both `lint.ignorePatterns` and `fmt.ignorePatterns`.
+Vite+ enforcement, merge `jsPlugins`, `settings`, and `rules` inside `lint`
+and place the managed paths in both `lint.ignorePatterns` and
+`fmt.ignorePatterns`. For assessment, put the policy in the standalone
+assessment configuration and add only those managed paths to normal checks.
 
 ### Standalone Oxfmt
 
@@ -214,10 +230,12 @@ Oxfmt's own `ignorePatterns` when standalone Oxfmt is present.
 ### Vite+
 
 When the target uses Vite+, detect the `vite.config.*` file and its `lint` or
-`fmt` blocks (or a declared `vite-plus` dependency). Merge the Oxlint plugin,
-settings, and rules above inside `lint`; merge the managed paths into both
-`lint.ignorePatterns` and `fmt.ignorePatterns`. Preserve the existing module
-syntax and unrelated Vite, test, build, and task configuration.
+`fmt` blocks (or a declared `vite-plus` dependency). In enforcement mode merge
+the Oxlint plugin, settings, and rules above inside `lint`; in assessment mode
+keep those policy entries in the standalone assessment configuration. In both
+modes merge the managed paths into `lint.ignorePatterns` and
+`fmt.ignorePatterns`. Preserve the existing module syntax and unrelated Vite,
+test, build, and task configuration.
 
 The temporary upstream skill path and the installed plugin/runtime paths must
 be in lint ignores so vendored executable files are not treated as application
@@ -226,11 +244,102 @@ source. The generic and boundary-aware plugin entries remain active in
 selection and plugin loading are separate. For Vite+, the same narrow paths
 must be present in `fmt.ignorePatterns` as well.
 
+### Assessment configuration and command
+
+In assessment mode, create `.oxlint.assessment.json` beside the normal
+configuration. Preserve the target's applicable existing ignore and parser
+settings, then add this complete policy overlay. Keep every policy rule at its
+intended `"error"` severity:
+
+```json
+{
+  "ignorePatterns": [
+    ".agents/external-skills/install-anti-slop/**",
+    "tools/oxlint/anti-slop/**",
+    "tools/oxlint/boundary-aware/**",
+    "tools/boundary-contracts/**",
+    "reports/anti-slop/**"
+  ],
+  "jsPlugins": [
+    { "name": "anti-slop", "specifier": "./tools/oxlint/anti-slop/index.ts" },
+    { "name": "boundary-aware", "specifier": "./tools/oxlint/boundary-aware/index.mjs" }
+  ],
+  "settings": {
+    "boundary-contracts": {
+      "ownedDecoderNames": ["ownedDecoder"],
+      "tolerantAdapterNames": ["tolerantAdapter"],
+      "successNames": ["success"],
+      "failureNames": ["failure"]
+    }
+  },
+  "rules": {
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "boundary-aware/require-declared-boundary": "error",
+    "boundary-aware/require-schema-for-owned-boundary": "error",
+    "boundary-aware/no-raw-boundary-data-escape": "error"
+  }
+}
+```
+
+For JavaScript/TypeScript and Vite+ configs, use the same module style in the
+assessment file and resolve plugin paths relative to the target repository.
+For Vite+, keep the assessment policy in the standalone assessment config;
+leave the normal `lint` policy unchanged until enforcement is requested.
+
+Add a package script named `anti-slop:assessment` that invokes
+`node tools/oxlint/boundary-aware/assessment.mjs` and passes the selected
+assessment config with `--config` when it is not the default
+`.oxlint.assessment.json`. Invoke it through the detected package manager,
+never by creating a second package-manager lockfile. The command runs the
+separate config, keeps its exit status non-zero when findings exist, and writes
+the stable assessment reports.
+
+Capture the normal toolchain immediately before and after dependency or Oxlint
+installation:
+
+```text
+<package-manager> run anti-slop:assessment -- --capture before
+<package-manager> install …
+<package-manager> run anti-slop:assessment -- --capture after
+<package-manager> run anti-slop:assessment
+```
+
+Use the package manager's native script syntax for Yarn and Bun when their
+syntax differs. Capture `lint`, `typecheck`, and `format:check` independently;
+an absent script is recorded as not configured. These snapshots describe the
+normal toolchain and are not an anti-slop baseline.
+
+The runner writes `reports/anti-slop/assessment.json` and
+`reports/anti-slop/assessment.txt`, plus deterministic
+`toolchain-before.json` and `toolchain-after.json` snapshots. The machine
+report contains sorted finding items and totals by severity, rule, and file.
+It puts non-policy Oxlint diagnostics under
+`toolchainDiagnostics.oxlint` and after-only diagnostics from the before/after
+snapshots under `toolchainDiagnostics.introduced`, classified as
+`introduced-by-dependency-or-oxlint-change`. It contains no timestamp or
+absolute target path. The readable report is concise and repeats the finding
+total, per-rule totals, Oxlint diagnostics, and introduced toolchain diagnostic
+count.
+
 ## Verify and report
 
 Run the repository's own lint, typecheck, and formatting/check commands using
-its package manager only after the configuration merge. For Vite+, run the full
-`vp check`. Run the bundled
+its package manager after the configuration merge. In assessment mode, prove
+that normal lint, typecheck, and formatting remain usable while the package
+manager-native assessment command exits non-zero for policy findings. In
+enforcement mode, prove that the complete policy is active in normal lint. For
+Vite+, run the full `vp check`. Run the bundled
 [boundary runtime fixtures](fixtures/accepted.test.mjs) and [Oxlint fixture
 runner](fixtures/run-oxlint-fixtures.mjs) as focused checks:
 
@@ -240,8 +349,9 @@ OXLINT_BIN=<target-oxlint> node <this-skill-directory>/fixtures/run-oxlint-fixtu
 ```
 
 Do not fix unrelated target findings, weaken rule severity, add suppression
-comments, or launder types to make the new checks pass. Report the remaining
-findings with their paths and commands.
+comments, or launder types to make the new checks pass. Report remaining
+assessment findings with their paths and commands, and list toolchain
+diagnostics separately from policy findings.
 
 Report:
 
@@ -250,9 +360,14 @@ Report:
   `tools/oxlint/anti-slop/.upstream.json`;
 - the managed asset paths and whether each changed;
 - the Oxlint configuration file and merged rules/ignores;
+- the selected mode, separate assessment configuration, package-manager-native
+  assessment command, and stable report paths when assessment was selected;
 - the package manager and dependency versions involved;
 - lint, typecheck, formatting, fixture, temporary-directory cleanup, and
   read-only-`.agents` results;
+- assessment totals by rule/severity/file and the before/after toolchain
+  diagnostics, including any diagnostics introduced by dependency or Oxlint
+  changes;
 - any exact conflict or remaining finding that needs human review.
 
 Maintainers can forward-test this entire procedure in disposable repositories
@@ -263,11 +378,14 @@ unmanaged-generic, and boundary-conflict states; idempotent reruns; exact
 generic-plugin hash/conflict checks; and lint, typecheck, format,
 configuration, fixture, temporary-cleanup, and provenance evidence. The
 forward test is validation for this skill repository, not an extra setup step
-for a user target.
+for a user target. The assessment critical path covers generic and
+boundary-aware findings, normal-check preservation, separate toolchain
+diagnostics, report totals, enforcement transition, and idempotent reruns.
 
 The focused managed-asset smoke test covers the critical path with real
 standalone Oxlint/Oxfmt, Prettier, and Vite+ commands:
 
 ```bash
 node --test <this-skill-directory>/scripts/managed-assets.test.mjs
+node --test <this-skill-directory>/scripts/assessment.test.mjs
 ```

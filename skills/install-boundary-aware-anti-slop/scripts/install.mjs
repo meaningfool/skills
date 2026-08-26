@@ -38,6 +38,7 @@ const components = {
         "rules/require-schema-for-owned-boundary.mjs",
         "references/oxlint/rules/require-schema-for-owned-boundary.mjs",
       ],
+      ["assessment.mjs", "scripts/assessment.mjs"],
     ],
   },
   runtime: {
