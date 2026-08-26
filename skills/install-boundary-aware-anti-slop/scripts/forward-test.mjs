@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { installPinnedSkill, readManifest } from "../../../scripts/install-pinned-skill.mjs";
+import { managedAssetIgnorePatterns } from "./managed-asset-contract.mjs";
 import { installBoundaryAssets } from "./install.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -44,12 +45,7 @@ const boundaryRules = [
   "boundary-aware/require-schema-for-owned-boundary",
   "boundary-aware/no-raw-boundary-data-escape",
 ];
-const installedIgnores = [
-  ".agents/**",
-  "tools/oxlint/anti-slop/**",
-  "tools/oxlint/boundary-aware/**",
-  "tools/boundary-contracts/**",
-];
+const installedIgnores = managedAssetIgnorePatterns;
 const managers = [
   { name: "npm", version: "10.13.1", lockfile: "package-lock.json" },
   { name: "pnpm", version: "10.13.1", lockfile: "pnpm-lock.yaml" },
@@ -513,10 +509,35 @@ async function assertConfiguration(target, config) {
   for (const needle of [...genericRules, ...boundaryRules, ...installedIgnores]) {
     assert.match(source, new RegExp(escapeRegExp(needle)), `${config.file}: ${needle}`);
   }
+  let lintIgnorePatterns = null;
+  let formatIgnorePatterns = null;
   if (config.kind === "vite-plus") {
     const parsed = await readConfig(target, config);
-    assert.deepEqual(parsed.lint.ignorePatterns.slice(-installedIgnores.length), installedIgnores);
-    assert.deepEqual(parsed.fmt.ignorePatterns.slice(-installedIgnores.length), installedIgnores);
+    lintIgnorePatterns = parsed.lint.ignorePatterns;
+    formatIgnorePatterns = parsed.fmt.ignorePatterns;
+    assert.deepEqual(lintIgnorePatterns.slice(-installedIgnores.length), installedIgnores);
+    assert.deepEqual(formatIgnorePatterns.slice(-installedIgnores.length), installedIgnores);
+  }
+  assert.equal(new Set(installedIgnores).size, installedIgnores.length);
+  for (const pattern of installedIgnores) {
+    if (config.kind === "vite-plus") {
+      assert.equal(
+        lintIgnorePatterns.filter((entry) => entry === pattern).length,
+        1,
+        `${config.file}: duplicate lint ignore ${pattern}`,
+      );
+      assert.equal(
+        formatIgnorePatterns.filter((entry) => entry === pattern).length,
+        1,
+        `${config.file}: duplicate format ignore ${pattern}`,
+      );
+      continue;
+    }
+    assert.equal(
+      source.indexOf(pattern),
+      source.lastIndexOf(pattern),
+      `${config.file}: duplicate ${pattern}`,
+    );
   }
 }
 

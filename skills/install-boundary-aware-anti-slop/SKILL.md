@@ -120,11 +120,34 @@ its managed path only when its provenance is current; otherwise report the
 conflict for review. In that case, pass `--skip-runtime` to the bundled
 installer when the existing runtime is the compatible one being retained.
 
-## Configure Oxlint
+## Configure target checks
 
-Merge the following entries into the target's existing Oxlint configuration,
-using its established JSON/JSONC or JavaScript/TypeScript style. Do not replace
-the configuration object.
+Before running any post-install lint or format check, merge the managed paths
+into every lint/formatter configuration that the target actually uses. Keep
+this exact ordered set of narrow patterns, appending only missing entries:
+
+```text
+.agents/external-skills/install-anti-slop/**
+tools/oxlint/anti-slop/**
+tools/oxlint/boundary-aware/**
+tools/boundary-contracts/**
+reports/anti-slop/**
+```
+
+The first path covers the verified upstream dependency while it is temporarily
+installed; it disappears from the target when the dependency installation
+workflow is made ephemeral. The final path is the reserved output directory
+for machine-readable and human-readable assessment reports. Do not replace
+existing ignores, reorder them, or add a broad `tools/**`, dot-directory,
+application-directory, or test-directory pattern. Preserve comments and blank
+lines in ignore files. A rerun with the same installation must make no file or
+ordering changes.
+
+### Standalone Oxlint
+
+Merge the managed paths into `ignorePatterns` in the target's existing
+`.oxlintrc.*` or `oxlint.config.*` file, preserving its JSON/JSONC or
+JavaScript/TypeScript module style. Do not replace the configuration object.
 
 ```json
 {
@@ -153,20 +176,49 @@ the configuration object.
 If the plugin was installed at another path, use that path in `specifier` and
 in the installed-assets ignore. If aliases already exist in the target,
 preserve them and configure the exact names used by the target wrappers. For
-Vite+, merge `jsPlugins`, `settings`, and `rules` inside `lint`, and place the
-same installed-assets ignores in both `lint.ignorePatterns` and
-`fmt.ignorePatterns`.
+Vite+, merge `jsPlugins`, `settings`, and `rules` inside `lint` and place the
+managed paths in both `lint.ignorePatterns` and `fmt.ignorePatterns`.
 
-Keep all existing ignores. Add the installed plugin/runtime paths and the
-repository's agent-tooling directories to lint ignores so vendored skill files
-are not treated as application source. For Vite+, merge the same ignores into
-both `lint.ignorePatterns` and `fmt.ignorePatterns`. Do not ignore broad
-dot-directories or application source to hide findings.
+### Standalone Oxfmt
+
+When the target has an Oxfmt configuration (`.oxfmtrc.*` or
+`oxfmt.config.*`), merge the managed paths into that configuration's
+`ignorePatterns`. When the target's Oxfmt command uses `--ignore-path` (for
+example, an established `.formatignore` file), append the same paths to that
+ignore file as well. Oxfmt uses Git-style patterns relative to the config or
+ignore file; keep the entries exactly as shown so explicit format checks cannot
+rewrite installed assets. Create `.formatignore` only when the target already
+has a formatter command convention that reads it.
+
+### Prettier
+
+When the target runs Prettier, detect it from its package manifest/scripts or
+Prettier configuration. Merge the managed paths into `.prettierignore`,
+creating that file only when Prettier is in use and no ignore file exists.
+Append missing entries as lines, retaining existing comments, blank lines, and
+order. This global ignore is also understood by Oxfmt, but still configure
+Oxfmt's own `ignorePatterns` when standalone Oxfmt is present.
+
+### Vite+
+
+When the target uses Vite+, detect the `vite.config.*` file and its `lint` or
+`fmt` blocks (or a declared `vite-plus` dependency). Merge the Oxlint plugin,
+settings, and rules above inside `lint`; merge the managed paths into both
+`lint.ignorePatterns` and `fmt.ignorePatterns`. Preserve the existing module
+syntax and unrelated Vite, test, build, and task configuration.
+
+The temporary upstream skill path and the installed plugin/runtime paths must
+be in lint ignores so vendored executable files are not treated as application
+source. The generic and boundary-aware plugin entries remain active in
+`jsPlugins` even when their source paths are in `ignorePatterns`: target-file
+selection and plugin loading are separate. For Vite+, the same narrow paths
+must be present in `fmt.ignorePatterns` as well.
 
 ## Verify and report
 
 Run the repository's own lint, typecheck, and formatting/check commands using
-its package manager. For Vite+, run the full `vp check`. Run the bundled
+its package manager only after the configuration merge. For Vite+, run the full
+`vp check`. Run the bundled
 [boundary runtime fixtures](fixtures/accepted.test.mjs) and [Oxlint fixture
 runner](fixtures/run-oxlint-fixtures.mjs) as focused checks:
 
@@ -195,3 +247,10 @@ missing, current, outdated-managed, and unmanaged-conflict states; idempotent
 reruns; and lint, typecheck, format, configuration, fixture, and provenance
 evidence. The forward test is validation for this skill repository, not an
 extra setup step for a user target.
+
+The focused managed-asset smoke test covers the critical path with real
+standalone Oxlint/Oxfmt, Prettier, and Vite+ commands:
+
+```bash
+node --test <this-skill-directory>/scripts/managed-assets.test.mjs
+```
