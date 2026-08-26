@@ -25,10 +25,13 @@ existing installation cannot be identified as managed.
    module, and Vite+ configuration styles. Preserve the file format, module
    style, helper functions, comments, ordering conventions, and unrelated
    entries.
-5. Look for an existing `install-anti-slop` installation and boundary runtime or
-   plugin. Treat a directory as managed only when its provenance file identifies
-   the expected source and content. A directory without provenance is an
-   unmanaged collision, not permission to overwrite it.
+5. Look for an existing generic `tools/oxlint/anti-slop` installation and
+   boundary runtime or plugin. Treat generic assets as managed only when
+   `tools/oxlint/anti-slop/.upstream.json` identifies the expected source and
+   records every durable installed file. Treat boundary assets as managed only
+   when their own provenance files identify the expected source and content. A
+   directory without provenance is an unmanaged collision, not permission to
+   overwrite it.
 
 Do not ask a question when a convention can be inferred. Use the target's
 existing tooling directory when one is clear; otherwise use the deterministic
@@ -42,28 +45,38 @@ the target's owned source tree. Resolve the owning checkout by following this
 skill's installation/symlink location to its repository root, where
 `scripts/install-pinned-skill.mjs` and `dependencies/anti-slop.json` live.
 
-- On a fresh target, run the owning repository's
-  `<skills-root>/scripts/install-pinned-skill.mjs install --destination
-  .agents/external-skills/install-anti-slop` command, then invoke the installed
-  upstream `install-anti-slop` skill from the target repository.
-- When `.agents/external-skills/install-anti-slop/.upstream.json` already names
-  the canonical Dillon source and the pinned revision, leave the dependency
-  files unchanged and run only the missing boundary-aware steps.
-- When that provenance names the canonical source but an older revision, run
-  the pinned installer again. It replaces only the managed upstream files and
-  leaves the target's configuration and unrelated files intact; the diff is the
-  reviewable upgrade.
-- When the destination exists without matching provenance, stop the dependency
-  step and report the exact path and conflict. Never use `--force` to guess
-  whether an unmanaged installation can be replaced.
+- Create an OS temporary directory outside the target repository. Use the
+  owning repository's `<skills-root>/scripts/install-pinned-skill.mjs install
+  --destination <temporary>/install-anti-slop` command to download and verify
+  every file in the authoritative pin.
+- Invoke the temporary copy's upstream `install-anti-slop` installer with the
+  target repository as its working directory. This writes only the upstream
+  `tools/oxlint/anti-slop` assets needed by the target; never install the
+  upstream skill under `.agents`, `.agents/skills`, or
+  `.agents/external-skills`.
+- After the upstream installer returns, compare the installed generic-plugin
+  tree and every file digest with the verified temporary
+  `assets/anti-slop` tree. Stop with the exact path on any mismatch, and write
+  target provenance only after this comparison succeeds.
+- Write `tools/oxlint/anti-slop/.upstream.json` beside those durable assets.
+  Record the canonical source, branch, revision, manifest hashes, and an
+  `installedFiles` entry for every installed generic-plugin file, including its
+  source manifest path and SHA-256 digest. Do not copy the upstream skill's
+  `SKILL.md`, installer, or temporary provenance into the target.
+- Always remove the temporary directory in a cleanup step, including when the
+  upstream installer or a later verification step fails. A target `.agents`
+  directory may be read-only because this flow must not write there.
 
-The upstream skill's copied `tools/oxlint/anti-slop` directory has no separate
-provenance file. When it already exists, compare every file and directory entry
-with the `assets/anti-slop` tree in the installed pinned skill. An exact copy
-with no extra entries is current and must be left untouched. Any changed file,
-missing file, or extra entry is an unmanaged conflict: report the exact path
-and stop before overwriting it. Do not use the upstream `--force` option as a
-shortcut for that review.
+When `tools/oxlint/anti-slop` already exists, validate its provenance and
+compare every file and directory entry with the recorded `installedFiles`.
+Report the exact path for any missing file, extra entry, or changed digest and
+stop before overwriting it. If the recorded provenance identifies the
+canonical source but an older revision, upgrade it only after that audit passes;
+run the pinned temporary installer and write fresh provenance. Use an upstream
+`--force` option only for that already-audited, managed upgrade; never use it
+as a shortcut for the review. When the provenance
+matches the current pin and every installed hash matches, leave the generic
+plugin byte-for-byte and timestamp unchanged.
 
 Follow the upstream skill's package-manager and configuration guidance. Enable
 all of its generic rules except the three rules replaced by the boundary-aware
@@ -134,14 +147,13 @@ tools/boundary-contracts/**
 reports/anti-slop/**
 ```
 
-The first path covers the verified upstream dependency while it is temporarily
-installed; it disappears from the target when the dependency installation
-workflow is made ephemeral. The final path is the reserved output directory
-for machine-readable and human-readable assessment reports. Do not replace
-existing ignores, reorder them, or add a broad `tools/**`, dot-directory,
-application-directory, or test-directory pattern. Preserve comments and blank
-lines in ignore files. A rerun with the same installation must make no file or
-ordering changes.
+The first path remains a narrow compatibility ignore for legacy external
+installs; the ephemeral workflow does not create that directory. The final
+path is the reserved output directory for machine-readable and human-readable
+assessment reports. Do not replace existing ignores, reorder them, or add a
+broad `tools/**`, dot-directory, application-directory, or test-directory
+pattern. Preserve comments and blank lines in ignore files. A rerun with the
+same installation must make no file or ordering changes.
 
 ### Standalone Oxlint
 
@@ -234,19 +246,24 @@ findings with their paths and commands.
 Report:
 
 - the pinned upstream revision and whether it was fresh, current, or upgraded;
+- the pinned source and per-file hashes recorded in
+  `tools/oxlint/anti-slop/.upstream.json`;
 - the managed asset paths and whether each changed;
 - the Oxlint configuration file and merged rules/ignores;
 - the package manager and dependency versions involved;
-- lint, typecheck, formatting, and fixture results;
+- lint, typecheck, formatting, fixture, temporary-directory cleanup, and
+  read-only-`.agents` results;
 - any exact conflict or remaining finding that needs human review.
 
 Maintainers can forward-test this entire procedure in disposable repositories
 with `node scripts/forward-test.mjs`. That matrix covers npm, pnpm, Yarn, and
 Bun; JSON, JSONC, JavaScript/TypeScript module, and Vite+ Oxlint configuration;
-missing, current, outdated-managed, and unmanaged-conflict states; idempotent
-reruns; and lint, typecheck, format, configuration, fixture, and provenance
-evidence. The forward test is validation for this skill repository, not an
-extra setup step for a user target.
+fresh, read-only-`.agents`, current, outdated-managed, modified-generic,
+unmanaged-generic, and boundary-conflict states; idempotent reruns; exact
+generic-plugin hash/conflict checks; and lint, typecheck, format,
+configuration, fixture, temporary-cleanup, and provenance evidence. The
+forward test is validation for this skill repository, not an extra setup step
+for a user target.
 
 The focused managed-asset smoke test covers the critical path with real
 standalone Oxlint/Oxfmt, Prettier, and Vite+ commands:

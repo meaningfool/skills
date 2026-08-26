@@ -12,6 +12,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -60,10 +61,13 @@ const configStyles = [
   { name: "vite-plus", file: "vite.config.ts", kind: "vite-plus" },
 ];
 const stateNames = [
-  "missing",
+  "fresh",
+  "read-only-agents",
   "current",
   "outdated-managed",
-  "conflicting-unmanaged-dependency",
+  "conflicting-modified-generic",
+  "conflicting-extra-generic",
+  "conflicting-unmanaged-generic",
   "conflicting-unmanaged-boundary",
 ];
 const packageManagerVersion = new Map(managers.map((manager) => [manager.name, manager.version]));
@@ -99,67 +103,108 @@ try {
     for (const manager of managers) {
       for (const config of configStyles) {
         const combination = `${manager.name}/${config.name}`;
-        const missingTarget = createTarget(root, manager, config, "missing", versions);
-        const missing = await invokeCompanionSkill(missingTarget, versions);
-        assert.equal(missing.inspection.packageManager, manager.name, combination);
-        assert.equal(missing.inspection.configStyle, config.name, combination);
-        assert.equal(missing.dependency.changed, true, combination);
-        assert.equal(missing.boundary.changed, true, combination);
-        assertChecks(missing, combination);
-        const installedOxlint = runInstalledOxlintFixtures(missingTarget, fixtureEvidence.oxlintBinary);
+        const freshTarget = createTarget(root, manager, config, "fresh", versions);
+        const fresh = await invokeCompanionSkill(freshTarget, versions);
+        assert.equal(fresh.inspection.packageManager, manager.name, combination);
+        assert.equal(fresh.inspection.configStyle, config.name, combination);
+        assert.equal(fresh.dependency.changed, true, combination);
+        assert.equal(fresh.dependency.temporaryCleaned, true, combination);
+        assert.equal(fresh.boundary.changed, true, combination);
+        assertNoExternalInstall(freshTarget, combination);
+        assertChecks(fresh, combination);
+        const installedOxlint = runInstalledOxlintFixtures(freshTarget, fixtureEvidence.oxlintBinary);
         results.push({
           combination,
-          state: "missing",
-          evidence: { ...missing, fixtureEvidence: { ...fixtureEvidence, installedOxlint } },
+          state: "fresh",
+          evidence: { ...fresh, fixtureEvidence: { ...fixtureEvidence, installedOxlint } },
         });
 
-        const currentTarget = cloneTarget(root, missingTarget, manager, config, "current");
+        const readOnlyAgentsTarget = createTarget(root, manager, config, "read-only-agents", versions);
+        const agentsDirectory = join(readOnlyAgentsTarget, ".agents");
+        mkdirSync(agentsDirectory, { recursive: true });
+        chmodSync(agentsDirectory, 0o555);
+        const readOnlyAgentsBefore = snapshot(agentsDirectory);
+        const readOnlyAgents = await invokeCompanionSkill(readOnlyAgentsTarget, versions);
+        assert.equal(readOnlyAgents.dependency.changed, true, combination);
+        assert.equal(readOnlyAgents.dependency.temporaryCleaned, true, combination);
+        assert.equal(readOnlyAgents.boundary.changed, true, combination);
+        assert.equal(statMode(agentsDirectory), 0o555, combination);
+        assert.deepEqual(snapshot(agentsDirectory), readOnlyAgentsBefore, combination);
+        assertNoExternalInstall(readOnlyAgentsTarget, combination);
+        assertChecks(readOnlyAgents, combination);
+        const readOnlyAgentsRerun = await invokeCompanionSkill(readOnlyAgentsTarget, versions);
+        assert.equal(readOnlyAgentsRerun.dependency.changed, false, combination);
+        assert.equal(readOnlyAgentsRerun.dependency.temporaryCleaned, true, combination);
+        assert.equal(readOnlyAgentsRerun.boundary.changed, false, combination);
+        assert.equal(statMode(agentsDirectory), 0o555, combination);
+        assert.deepEqual(snapshot(agentsDirectory), readOnlyAgentsBefore, combination);
+        results.push({ combination, state: "read-only-agents", evidence: { ...readOnlyAgents, fixtureEvidence } });
+
+        const currentTarget = cloneTarget(root, freshTarget, manager, config, "current");
         const currentBefore = snapshot(currentTarget);
         const current = await invokeCompanionSkill(currentTarget, versions);
         assert.equal(current.dependency.changed, false, combination);
+        assert.equal(current.dependency.temporaryCleaned, true, combination);
         assert.equal(current.boundary.changed, false, combination);
         assert.deepEqual(snapshot(currentTarget), currentBefore, combination);
+        assertNoExternalInstall(currentTarget, combination);
         assertChecks(current, combination);
         results.push({ combination, state: "current", evidence: { ...current, fixtureEvidence } });
 
-        const outdatedTarget = cloneTarget(root, missingTarget, manager, config, "outdated-managed");
+        const outdatedTarget = cloneTarget(root, freshTarget, manager, config, "outdated-managed");
         makeManagedInstallationsOutdated(outdatedTarget);
         const outdated = await invokeCompanionSkill(outdatedTarget, versions);
         assert.equal(outdated.dependency.changed, true, combination);
+        assert.equal(outdated.dependency.temporaryCleaned, true, combination);
         assert.equal(outdated.boundary.changed, true, combination);
+        assertNoExternalInstall(outdatedTarget, combination);
         assertChecks(outdated, combination);
         const outdatedAfter = snapshot(outdatedTarget);
         const outdatedRerun = await invokeCompanionSkill(outdatedTarget, versions);
         assert.equal(outdatedRerun.dependency.changed, false, combination);
+        assert.equal(outdatedRerun.dependency.temporaryCleaned, true, combination);
         assert.equal(outdatedRerun.boundary.changed, false, combination);
         assert.deepEqual(snapshot(outdatedTarget), outdatedAfter, combination);
+        assertNoExternalInstall(outdatedTarget, combination);
         results.push({
           combination,
           state: "outdated-managed",
           evidence: { first: { ...outdated, fixtureEvidence }, rerun: outdatedRerun },
         });
 
-        const dependencyConflictTarget = createTarget(
-          root,
-          manager,
-          config,
-          "conflicting-unmanaged-dependency",
-          versions,
-        );
-        writeText(
-          join(dependencyConflictTarget, ".agents/external-skills/install-anti-slop/README.md"),
-          "owned by the target\n",
-        );
+        const modifiedGenericTarget = cloneTarget(root, freshTarget, manager, config, "conflicting-modified-generic");
+        const modifiedGenericPath = join(modifiedGenericTarget, "tools/oxlint/anti-slop/index.ts");
+        writeText(modifiedGenericPath, "// modified by the target\n");
         await expectConflict(
-          dependencyConflictTarget,
-          "conflicting-unmanaged-dependency",
-          /untracked install.*\.agents\/external-skills\/install-anti-slop/,
+          modifiedGenericTarget,
+          "conflicting-modified-generic",
+          new RegExp(escapeRegExp(modifiedGenericPath)),
+          failures,
+        );
+
+        const extraGenericTarget = cloneTarget(root, freshTarget, manager, config, "conflicting-extra-generic");
+        const extraGenericPath = join(extraGenericTarget, "tools/oxlint/anti-slop/empty-directory");
+        mkdirSync(extraGenericPath, { recursive: true });
+        await expectConflict(
+          extraGenericTarget,
+          "conflicting-extra-generic",
+          new RegExp(escapeRegExp(extraGenericPath)),
+          failures,
+        );
+
+        const unmanagedGenericTarget = cloneTarget(root, freshTarget, manager, config, "conflicting-unmanaged-generic");
+        const genericProvenancePath = join(unmanagedGenericTarget, "tools/oxlint/anti-slop/.upstream.json");
+        rmSync(genericProvenancePath);
+        await expectConflict(
+          unmanagedGenericTarget,
+          "conflicting-unmanaged-generic",
+          /unmanaged generic anti-slop installation.*tools\/oxlint\/anti-slop/,
           failures,
         );
 
         const boundaryConflictTarget = cloneTarget(
           root,
-          missingTarget,
+          freshTarget,
           manager,
           config,
           "conflicting-unmanaged-boundary",
@@ -176,7 +221,7 @@ try {
       }
     }
 
-    assert.equal(results.length, managers.length * configStyles.length * 3);
+    assert.equal(results.length, managers.length * configStyles.length * 4);
     assert.equal(failures.length, 0, JSON.stringify(failures, null, 2));
     console.log(
       `Forward-test matrix passed: ${managers.length} package managers x ${configStyles.length} Oxlint styles x ${stateNames.length} installation states.`,
@@ -279,8 +324,8 @@ function writeForwardChecks(target, config, manager) {
       "./tools/oxlint/boundary-aware/index.mjs",
     ],
     required: [
-      ".agents/external-skills/install-anti-slop/.upstream.json",
       "tools/oxlint/anti-slop/index.ts",
+      "tools/oxlint/anti-slop/.upstream.json",
       "tools/oxlint/boundary-aware/index.mjs",
       "tools/boundary-contracts/boundary-contracts.mjs",
       "tools/boundary-contracts/boundary-contracts.d.ts",
@@ -300,6 +345,8 @@ const config = readFileSync(join(root, contract.configFile), "utf8");
 
 for (const needle of contract.needles) assert.equal(config.includes(needle), true, needle);
 for (const required of contract.required) assert.equal(existsSync(join(root, required)), true, required);
+assert.equal(existsSync(join(root, ".agents/external-skills")), false, ".agents/external-skills must not persist");
+assert.equal(existsSync(join(root, ".agents/skills")), false, ".agents/skills must not persist");
 
 if (mode === "typecheck") {
   assert.match(readFileSync(join(root, "tools/boundary-contracts/boundary-contracts.d.ts"), "utf8"), /Boundary/);
@@ -342,34 +389,207 @@ process.exit(result.status ?? 1);
 
 async function invokeCompanionSkill(target, versions) {
   const inspection = inspectTarget(target);
-  const dependencyDestination = join(target, ".agents/external-skills/install-anti-slop");
-  const dependency = await installPinnedSkill(dependencyManifest, dependencyDestination);
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "boundary-aware-upstream-"));
+  const dependencyDestination = join(temporaryRoot, "install-anti-slop");
   const upstreamPlugin = join(target, "tools/oxlint/anti-slop");
   let upstreamAction = "current";
-  if (!existsSync(upstreamPlugin)) {
-    const script = join(dependencyDestination, "scripts/install.mjs");
-    const result = run(process.execPath, [script, "tools/oxlint/anti-slop"], target);
-    assertCommand(result, "upstream install-anti-slop");
-    upstreamAction = "fresh";
-  } else if (!sameTree(upstreamPlugin, join(dependencyDestination, "assets/anti-slop"))) {
+  const dependencyRevision = dependencyManifest.revision;
+  let result;
+
+  try {
+    await installPinnedSkill(dependencyManifest, dependencyDestination);
+    const genericStatus = inspectGenericInstallation(target, dependencyManifest);
+    if (!genericStatus.current) {
+      const script = join(dependencyDestination, "scripts/install.mjs");
+      const installerArgs = [script, "tools/oxlint/anti-slop"];
+      if (genericStatus.exists) installerArgs.push("--force");
+      const installerResult = run(process.execPath, installerArgs, target);
+      assertCommand(installerResult, "upstream install-anti-slop");
+      assertGenericAssetsMatch(upstreamPlugin, dependencyManifest);
+      writeGenericProvenance(upstreamPlugin, dependencyManifest);
+      assert.equal(inspectGenericInstallation(target, dependencyManifest).current, true);
+      upstreamAction = genericStatus.exists ? "upgraded" : "fresh";
+    }
+
+    const boundary = installBoundaryAssets({ cwd: target });
+    await mergeOxlintConfiguration(target, inspection.config);
+    const checks = runChecks(target, inspection.packageManager);
+    await assertConfiguration(target, inspection.config);
+    result = {
+      inspection,
+      dependency: {
+        changed: upstreamAction !== "current",
+        revision: dependencyRevision,
+        temporaryCleaned: false,
+      },
+      upstream: upstreamAction,
+      boundary,
+      checks,
+      provenance: collectProvenance(target),
+      dependencyVersions: versions,
+    };
+    return result;
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+    if (result) result.dependency.temporaryCleaned = !existsSync(temporaryRoot);
+  }
+}
+
+function genericFiles(manifest) {
+  return manifest.files
+    .filter((file) => file.path.startsWith("assets/anti-slop/"))
+    .map((file) => ({
+      path: file.path.slice("assets/anti-slop/".length),
+      source: file.path,
+      sha256: file.sha256,
+    }));
+}
+
+function genericProvenance(manifest) {
+  return {
+    name: manifest.name,
+    source: manifest.source,
+    branch: manifest.branch,
+    revision: manifest.revision,
+    path: manifest.path,
+    files: manifest.files,
+    installedFiles: genericFiles(manifest),
+  };
+}
+
+function writeGenericProvenance(destination, manifest) {
+  writeText(
+    join(destination, ".upstream.json"),
+    `${JSON.stringify(genericProvenance(manifest), null, 2)}\n`,
+  );
+}
+
+function inspectGenericInstallation(target, manifest) {
+  const destination = join(target, "tools/oxlint/anti-slop");
+  if (!existsSync(destination)) return { exists: false, current: false };
+  if (!lstatSync(destination).isDirectory()) {
+    throw new Error(`Generic anti-slop destination is not a directory: ${destination}.`);
+  }
+  const provenancePath = join(destination, ".upstream.json");
+  if (!existsSync(provenancePath)) {
     throw new Error(
-      `Refusing to overwrite an unmanaged anti-slop installation at ${upstreamPlugin}; review the exact path before replacing it.`,
+      `Refusing to overwrite an unmanaged generic anti-slop installation at ${destination}; ` +
+        `expected provenance at ${provenancePath}.`,
     );
   }
 
-  const boundary = installBoundaryAssets({ cwd: target });
-  await mergeOxlintConfiguration(target, inspection.config);
-  const checks = runChecks(target, inspection.packageManager);
-  await assertConfiguration(target, inspection.config);
-  return {
-    inspection,
-    dependency: { changed: dependency.changed, revision: dependency.revision },
-    upstream: upstreamAction,
-    boundary,
-    checks,
-    provenance: collectProvenance(target),
-    dependencyVersions: versions,
-  };
+  let provenance;
+  try {
+    provenance = JSON.parse(readFileSync(provenancePath, "utf8"));
+  } catch {
+    throw new Error(`Refusing to use invalid generic anti-slop provenance at ${provenancePath}.`);
+  }
+  if (
+    provenance?.name !== manifest.name ||
+    provenance?.source !== manifest.source ||
+    provenance?.branch !== manifest.branch ||
+    provenance?.path !== manifest.path ||
+    !Array.isArray(provenance.installedFiles) ||
+    provenance.installedFiles.length === 0
+  ) {
+    throw new Error(`Refusing to overwrite a different generic anti-slop installation at ${destination}.`);
+  }
+
+  const recorded = new Map(
+    provenance.installedFiles.map((file) => {
+      if (
+        !file ||
+        typeof file.path !== "string" ||
+        typeof file.source !== "string" ||
+        file.source !== `assets/anti-slop/${file.path}` ||
+        !/^[0-9a-f]{64}$/.test(file.sha256) ||
+        file.path.startsWith("/") ||
+        file.path.includes("\\") ||
+        file.path.split("/").includes("..") ||
+        !file.path
+      ) {
+        throw new Error(`Refusing to use invalid generic anti-slop file metadata at ${provenancePath}.`);
+      }
+      return [file.path, file];
+    }),
+  );
+  if (recorded.size !== provenance.installedFiles.length) {
+    throw new Error(`Refusing to use incomplete generic anti-slop file metadata at ${provenancePath}.`);
+  }
+
+  const actual = walkEntries(destination).filter((path) => path !== ".upstream.json");
+  const expected = expectedGenericEntries(recorded.keys());
+  const expectedEntries = new Set(expected);
+  const unexpected = actual.filter((path) => !expectedEntries.has(path));
+  const missing = expected.filter((path) => !actual.includes(path));
+  if (unexpected.length || missing.length) {
+    const conflicts = [
+      ...unexpected.map((path) => join(destination, path)),
+      ...missing.map((path) => join(destination, path)),
+    ];
+    throw new Error(
+      `Generic anti-slop installation has an exact file conflict at ${conflicts.join(", ")}; ` +
+        "review it before running the installer again.",
+    );
+  }
+  for (const [path, file] of recorded) {
+    const actualDigest = sha256(readFileSync(join(destination, path)));
+    if (actualDigest !== file.sha256) {
+      throw new Error(
+        `Managed generic anti-slop file changed locally: ${join(destination, path)}; ` +
+          "review it before running the installer again.",
+      );
+    }
+  }
+
+  const expectedCurrent = genericFiles(manifest);
+  const current =
+    provenance.revision === manifest.revision &&
+    JSON.stringify(provenance.files) === JSON.stringify(manifest.files) &&
+    JSON.stringify(provenance.installedFiles) === JSON.stringify(expectedCurrent) &&
+    JSON.stringify(expected) === JSON.stringify(expectedGenericEntries(expectedCurrent.map((file) => file.path)));
+  return { exists: true, current };
+}
+
+function expectedGenericEntries(filePaths) {
+  const paths = [...filePaths];
+  const entries = new Set(paths);
+  for (const path of paths) {
+    const parts = path.split("/");
+    for (let index = 1; index < parts.length; index += 1) {
+      entries.add(`${parts.slice(0, index).join("/")}/`);
+    }
+  }
+  return [...entries].sort();
+}
+
+function assertGenericAssetsMatch(destination, manifest) {
+  const expectedFiles = genericFiles(manifest);
+  const expected = expectedGenericEntries(expectedFiles.map((file) => file.path));
+  const actual = walkEntries(destination).filter((path) => path !== ".upstream.json");
+  const expectedEntries = new Set(expected);
+  const unexpected = actual.filter((path) => !expectedEntries.has(path));
+  const missing = expected.filter((path) => !actual.includes(path));
+  if (unexpected.length || missing.length) {
+    const conflicts = [
+      ...unexpected.map((path) => join(destination, path)),
+      ...missing.map((path) => join(destination, path)),
+    ];
+    throw new Error(
+      `Verified generic anti-slop assets have an exact file conflict at ${conflicts.join(", ")}; ` +
+        "review the upstream installer output before recording provenance.",
+    );
+  }
+  for (const file of expectedFiles) {
+    const target = join(destination, file.path);
+    const actualDigest = sha256(readFileSync(target));
+    if (actualDigest !== file.sha256) {
+      throw new Error(
+        `Verified generic anti-slop file has an unexpected hash at ${target}; ` +
+          `expected ${file.sha256}, got ${actualDigest}.`,
+      );
+    }
+  }
 }
 
 function inspectTarget(target) {
@@ -542,7 +762,7 @@ async function assertConfiguration(target, config) {
 }
 
 function collectProvenance(target) {
-  const upstreamPath = join(target, ".agents/external-skills/install-anti-slop/.upstream.json");
+  const upstreamPath = join(target, "tools/oxlint/anti-slop/.upstream.json");
   const pluginPath = join(target, "tools/oxlint/boundary-aware/.boundary-aware.json");
   const runtimePath = join(target, "tools/boundary-contracts/.boundary-aware.json");
   return {
@@ -553,9 +773,16 @@ function collectProvenance(target) {
 }
 
 function makeManagedInstallationsOutdated(target) {
-  const upstreamPath = join(target, ".agents/external-skills/install-anti-slop/.upstream.json");
+  const upstreamPath = join(target, "tools/oxlint/anti-slop/.upstream.json");
   const upstream = JSON.parse(readFileSync(upstreamPath, "utf8"));
   upstream.revision = "0".repeat(40);
+  const oldGenericContent = "// old managed generic plugin\n";
+  writeText(join(target, "tools/oxlint/anti-slop/index.ts"), oldGenericContent);
+  upstream.installedFiles = upstream.installedFiles.map((file) =>
+    file.path === "index.ts"
+      ? { ...file, sha256: sha256(Buffer.from(oldGenericContent)) }
+      : file,
+  );
   writeText(upstreamPath, `${JSON.stringify(upstream, null, 2)}\n`);
 
   for (const component of [
@@ -575,6 +802,11 @@ function makeManagedInstallationsOutdated(target) {
     );
     writeText(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
   }
+}
+
+function assertNoExternalInstall(target, combination) {
+  assert.equal(existsSync(join(target, ".agents/external-skills")), false, combination);
+  assert.equal(existsSync(join(target, ".agents/skills")), false, combination);
 }
 
 async function expectConflict(target, state, pattern, failures) {
@@ -676,6 +908,10 @@ function snapshot(directory) {
   });
 }
 
+function statMode(path) {
+  return statSync(path).mode & 0o777;
+}
+
 function walkFiles(directory, prefix = "") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     if (entry.name === ".git" || entry.name === "node_modules") return [];
@@ -688,11 +924,15 @@ function walkFiles(directory, prefix = "") {
   }).sort();
 }
 
-function sameTree(left, right) {
-  const leftFiles = walkFiles(left);
-  const rightFiles = walkFiles(right);
-  if (JSON.stringify(leftFiles) !== JSON.stringify(rightFiles)) return false;
-  return leftFiles.every((file) => readFileSync(join(left, file)).equals(readFileSync(join(right, file))));
+function walkEntries(directory, prefix = "") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const absolutePath = join(directory, entry.name);
+    if (entry.isSymbolicLink()) throw new Error(`Unexpected symlink in generic anti-slop installation: ${absolutePath}`);
+    if (entry.isDirectory()) return [`${path}/`, ...walkEntries(absolutePath, path)];
+    if (entry.isFile()) return [path];
+    return [];
+  }).sort();
 }
 
 function writeText(path, content) {
@@ -744,5 +984,9 @@ function assertChecks(result, combination) {
     combination,
   );
   assert.equal(result.provenance.upstream.revision, dependencyManifest.revision, combination);
+  assert.equal(result.provenance.upstream.source, dependencyManifest.source, combination);
+  assert.equal(result.provenance.upstream.branch, dependencyManifest.branch, combination);
+  assert.deepEqual(result.provenance.upstream.files, dependencyManifest.files, combination);
+  assert.deepEqual(result.provenance.upstream.installedFiles, genericFiles(dependencyManifest), combination);
   assert.equal(result.provenance.boundaryPlugin.source, "meaningfool/skills/install-boundary-aware-anti-slop", combination);
 }
