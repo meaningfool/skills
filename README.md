@@ -18,6 +18,8 @@ mandatory linear workflow:
 
 ## Standalone skills
 
+- `boundary-contracts` defines executable declarations for owned decoders and
+  tolerant external adapters.
 - `let-me-see` prepares an environment and manual verification scenarios.
 - `workspace-clean-up` audits and cleans Git worktrees, branches, and stashes.
 - `wrap-up` completes repository work through PR, merge, and cleanup.
