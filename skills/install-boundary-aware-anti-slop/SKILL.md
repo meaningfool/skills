@@ -16,12 +16,15 @@ existing installation cannot be identified as managed.
 1. Read the target repository's agent instructions and relevant project docs.
 2. Check `git status --short`; leave existing changes untouched and keep the
    final diff limited to this installation.
-3. Identify the package manager from `packageManager` and lockfiles. Use the
-   existing manager for every dependency or script command; never create a new
-   lockfile with another manager.
+3. Identify the package manager from `packageManager` and lockfiles. The
+   supported managers are npm, pnpm, Yarn, and Bun. Use the existing manager
+   for every dependency or script command; never create a new lockfile with
+   another manager.
 4. Find the existing Oxlint setup in `oxlint.config.*`, `.oxlintrc*`, or the
-   repository's Vite+ configuration. Preserve its file format, module style,
-   helper functions, comments, ordering conventions, and unrelated entries.
+   repository's Vite+ configuration. Support JSON/JSONC, JavaScript/TypeScript
+   module, and Vite+ configuration styles. Preserve the file format, module
+   style, helper functions, comments, ordering conventions, and unrelated
+   entries.
 5. Look for an existing `install-anti-slop` installation and boundary runtime or
    plugin. Treat a directory as managed only when its provenance file identifies
    the expected source and content. A directory without provenance is an
@@ -53,6 +56,14 @@ skill's installation/symlink location to its repository root, where
 - When the destination exists without matching provenance, stop the dependency
   step and report the exact path and conflict. Never use `--force` to guess
   whether an unmanaged installation can be replaced.
+
+The upstream skill's copied `tools/oxlint/anti-slop` directory has no separate
+provenance file. When it already exists, compare every file and directory entry
+with the `assets/anti-slop` tree in the installed pinned skill. An exact copy
+with no extra entries is current and must be left untouched. Any changed file,
+missing file, or extra entry is an unmanaged conflict: report the exact path
+and stop before overwriting it. Do not use the upstream `--force` option as a
+shortcut for that review.
 
 Follow the upstream skill's package-manager and configuration guidance. Enable
 all of its generic rules except the three rules replaced by the boundary-aware
@@ -176,3 +187,11 @@ Report:
 - the package manager and dependency versions involved;
 - lint, typecheck, formatting, and fixture results;
 - any exact conflict or remaining finding that needs human review.
+
+Maintainers can forward-test this entire procedure in disposable repositories
+with `node scripts/forward-test.mjs`. That matrix covers npm, pnpm, Yarn, and
+Bun; JSON, JSONC, JavaScript/TypeScript module, and Vite+ Oxlint configuration;
+missing, current, outdated-managed, and unmanaged-conflict states; idempotent
+reruns; and lint, typecheck, format, configuration, fixture, and provenance
+evidence. The forward test is validation for this skill repository, not an
+extra setup step for a user target.

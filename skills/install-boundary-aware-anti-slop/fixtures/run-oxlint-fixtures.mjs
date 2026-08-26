@@ -5,8 +5,20 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
-const pluginPath = resolve(fixtureDirectory, "../references/oxlint/index.mjs");
+const pluginArgumentIndex = process.argv.indexOf("--plugin");
+const fixtureArgumentIndex = process.argv.indexOf("--fixture-directory");
 const oxlintArgumentIndex = process.argv.indexOf("--oxlint");
+const pluginPath = resolve(
+  pluginArgumentIndex === -1
+    ? fixtureDirectory
+    : process.argv[pluginArgumentIndex + 1] ?? fixtureDirectory,
+  pluginArgumentIndex === -1 ? "../references/oxlint/index.mjs" : ".",
+);
+const fixtureRoot = resolve(
+  fixtureArgumentIndex === -1
+    ? fixtureDirectory
+    : process.argv[fixtureArgumentIndex + 1] ?? fixtureDirectory,
+);
 const oxlintPath =
   oxlintArgumentIndex === -1
     ? process.env.OXLINT_BIN
@@ -80,7 +92,7 @@ function runExpectedFailures(fileName, expectedRules) {
 function run(fileName) {
   return spawnSync(
     oxlintPath,
-    ["--config", configPath, resolve(fixtureDirectory, "oxlint", fileName)],
+    ["--config", configPath, resolve(fixtureRoot, "oxlint", fileName)],
     { encoding: "utf8" },
   );
 }
