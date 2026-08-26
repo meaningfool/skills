@@ -40,6 +40,50 @@ The boundary-aware lint rules enforce declarations, output types, and the
 absence of open `unknown`/dictionary outputs statically; do not replace those
 rules with comments or directory naming conventions.
 
+## Enable the boundary-aware Oxlint rules
+
+Copy the plugin directory from [oxlint](references/oxlint/) into the target
+repository's owned tooling directory. The plugin is an ESLint-compatible JS
+plugin and has no runtime dependency on this skill directory. Register the
+copied `index.mjs` with the target's Oxlint configuration:
+
+```json
+{
+  "jsPlugins": [
+    {
+      "name": "boundary-aware",
+      "specifier": "./tools/oxlint/boundary-aware/index.mjs"
+    }
+  ],
+  "settings": {
+    "boundary-contracts": {
+      "ownedDecoderNames": ["ownedDecoder"],
+      "tolerantAdapterNames": ["tolerantAdapter"],
+      "successNames": ["success"],
+      "failureNames": ["failure"]
+    }
+  },
+  "rules": {
+    "boundary-aware/require-declared-boundary": "error",
+    "boundary-aware/require-schema-for-owned-boundary": "error",
+    "boundary-aware/no-raw-boundary-data-escape": "error"
+  }
+}
+```
+
+When this extension replaces Dillon Mulroy's generic policy, disable
+`anti-slop/no-unknown-parameters`, `anti-slop/no-runtime-typeof`, and
+`anti-slop/no-unsafe-dictionary-type`; keep the other generic rules enabled.
+Configure wrapper aliases explicitly instead of relying on directory names or
+comments.
+
+The plugin enforces syntax it can prove: direct raw-parameter escapes,
+obviously open output annotations, explicit schema-capability expressions, and
+the adapter result vocabulary. It cannot prove the implementation behind an
+imported schema or whether a selected property is semantically safe; runtime
+wrapper checks and the target repository's type checker remain responsible for
+those guarantees.
+
 ## Verify the contract
 
 Run the executable accepted and rejected fixtures from this skill directory:
@@ -48,7 +92,16 @@ Run the executable accepted and rejected fixtures from this skill directory:
 node --test skills/boundary-contracts/fixtures/*.test.mjs
 ```
 
+With an Oxlint executable available, run the static fixture suite as well:
+
+```bash
+OXLINT_BIN=/path/to/oxlint \
+  node skills/boundary-contracts/fixtures/run-oxlint-fixtures.mjs
+```
+
 The accepted fixtures cover a schema-backed owned decoder, a tolerant provider
 adapter, and an ordinary internal function. The rejected fixtures cover an
 undeclared raw boundary, handwritten owned-contract parsing, and an adapter
-that attempts to return raw data.
+that attempts to return raw data. The Oxlint fixtures also cover the selected
+EventPulse runtime-start and provider-event shapes, plus the handwritten
+`parseCompletion` shape that should be redirected to an owned decoder.
