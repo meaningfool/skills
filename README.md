@@ -21,6 +21,9 @@ mandatory linear workflow:
 - `boundary-contracts` defines executable declarations for owned decoders and
   tolerant external adapters, plus the boundary-aware Oxlint rules and
   fixtures that enforce them.
+- `install-boundary-aware-anti-slop` composes the pinned generic policy with
+  the boundary-aware plugin, wrappers, safe asset installer, and verification
+  fixtures.
 - `let-me-see` prepares an environment and manual verification scenarios.
 - `workspace-clean-up` audits and cleans Git worktrees, branches, and stashes.
 - `wrap-up` completes repository work through PR, merge, and cleanup.
