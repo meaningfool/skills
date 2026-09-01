@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const provenanceFile = ".boundary-aware.json";
 const sourceName = "meaningfool/skills/install-boundary-aware-anti-slop";
-const installerVersion = 1;
+const installerVersion = 2;
 
 const components = {
   plugin: {
@@ -35,17 +35,20 @@ const components = {
         "references/oxlint/rules/require-declared-boundary.mjs",
       ],
       [
-        "rules/require-schema-for-owned-boundary.mjs",
-        "references/oxlint/rules/require-schema-for-owned-boundary.mjs",
+        "rules/require-constraining-schema.mjs",
+        "references/oxlint/rules/require-constraining-schema.mjs",
       ],
-      ["assessment.mjs", "scripts/assessment.mjs"],
+      [
+        "rules/require-bounded-tolerant-boundary.mjs",
+        "references/oxlint/rules/require-bounded-tolerant-boundary.mjs",
+      ],
     ],
   },
   runtime: {
     defaultDestination: "tools/boundary-contracts",
     files: [
       ["boundary-contracts.mjs", "references/boundary-contracts.mjs"],
-      ["boundary-contracts.d.ts", "references/boundary-contracts.d.ts"],
+      ["boundary-contracts.d.mts", "references/boundary-contracts.d.mts"],
     ],
   },
 };
@@ -150,7 +153,7 @@ function assertLocalEditsAreReviewed(destination, metadata) {
   for (const [path, digest] of recorded) {
     const target = join(destination, path);
     if (!existsSync(target)) {
-      continue;
+      fail(`Managed boundary-aware file is missing: ${target}.`);
     }
     if (!lstatSync(target).isFile() || sha256(readFileSync(target)) !== digest) {
       fail(
@@ -169,16 +172,23 @@ function prepareComponent(componentName, destination) {
   const files = readComponentFiles(component);
   const metadata = metadataFor(componentName, files);
 
+  let previousMetadata = null;
   if (existsSync(resolvedDestination)) {
     if (!lstatSync(resolvedDestination).isDirectory()) {
       fail(`Boundary-aware destination is not a directory: ${resolvedDestination}`);
     }
     assertNoSymlinks(resolvedDestination);
-    const current = readMetadata(resolvedDestination, componentName);
-    assertLocalEditsAreReviewed(resolvedDestination, current);
+    previousMetadata = readMetadata(resolvedDestination, componentName);
+    assertLocalEditsAreReviewed(resolvedDestination, previousMetadata);
   }
 
-  return { componentName, destination: resolvedDestination, files, metadata };
+  return {
+    componentName,
+    destination: resolvedDestination,
+    files,
+    metadata,
+    previousMetadata,
+  };
 }
 
 function filesMatch(component) {
@@ -205,6 +215,13 @@ function replaceManagedDirectory(component) {
   try {
     if (existsSync(component.destination)) {
       cpSync(component.destination, staging, { recursive: true, force: true });
+    }
+
+    const installedPaths = new Set(component.files.map(({ path }) => path));
+    for (const previous of component.previousMetadata?.files ?? []) {
+      if (!installedPaths.has(previous.path)) {
+        rmSync(join(staging, previous.path), { force: true });
+      }
     }
 
     for (const { path, content } of component.files) {

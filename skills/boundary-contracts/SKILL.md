@@ -1,51 +1,81 @@
 ---
 name: boundary-contracts
-description: Define executable owned-decoder and tolerant-adapter boundaries for raw external input. Use when application code needs explicit schema validation, tolerant provider conversion, or a narrow owned result at a system boundary.
+description: Define and enforce strict/default and bounded tolerant trust transitions for raw runtime input. Use when application code needs schema-backed HTTP, service, persistence, version-migration, provider, or platform boundaries that return narrow owned values.
 ---
 
-# Boundary Contracts
+# Boundary contracts
 
-Use the reference runtime in [boundary-contracts.mjs](references/boundary-contracts.mjs)
-as the portable contract vocabulary. Keep the wrapper implementation in the
-target repository's own boundary module when installing this skill; do not make
-the target depend on this skill directory at runtime.
+Use [boundary-contracts.mjs](references/boundary-contracts.mjs) as the portable
+runtime vocabulary. Install a target-owned copy; application code must not
+depend on this skill directory at runtime.
 
-## Choose the boundary category
+## Place the trust transition
 
-- Use `ownedDecoder(schema, convert)` for stable input whose owned contract is
-  controlled by the application. The wrapper calls `schema.parse(input)` before
-  it calls `convert(validated)`, and returns the converted owned value.
-- Use `tolerantAdapter(adapt)` for independently evolving provider or platform
-  input. The adapter receives raw input and returns either `success(ownedValue)`
-  or `failure(code, message)`.
-- Leave ordinary internal functions unwrapped. Internal values do not cross a
-  raw-input boundary and do not need this API.
+A boundary is the one-time transition from an untrusted runtime representation
+to an owned application value. Resolve suspicious raw handling by improving an
+internal type, moving validation to the real ingress, declaring
+`boundary({...})`, or declaring a justified `boundary.tolerant({...})`.
 
-The schema capability is deliberately small: any object with a
-`parse(input: unknown)` method qualifies. Use the target repository's existing
-schema library or a local implementation; do not introduce a mandatory schema
-dependency.
+Leave precisely typed internal functions outside this API. A declaration is
+not a substitute for improving an internal contract.
 
-## Declare and enforce the boundary
+### Strict/default boundary
 
-1. Keep the raw parameter on the wrapper implementation's callback only.
-2. Pass validated data, not raw input, to an owned decoder's converter.
-3. Return a narrow owned value from an owned decoder.
-4. Return only `success(...)` or `failure(...)` from a tolerant adapter.
-5. Keep runtime inspection inside the declared wrapper callback.
-6. Keep purely internal functions outside the wrapper API.
+Use `boundary({...})` for application-controlled HTTP, service, current
+persistence, and other stable contracts:
 
-The wrapper enforces schema invocation and the adapter result shape at runtime.
-The boundary-aware lint rules enforce declarations, output types, and the
-absence of open `unknown`/dictionary outputs statically; do not replace those
-rules with comments or directory naming conventions.
+```ts
+const decodeRequest = boundary({
+  schema: requestSchema,
+  convert: (validated) => ({
+    requestId: validated.requestId,
+  }),
+});
+```
 
-## Enable the boundary-aware Oxlint rules
+Require a constraining schema that rejects input outside the accepted contract.
+The converter receives only validated data and returns a narrow owned value.
+Keep the converter inline so lint can inspect its result.
+Schemas that return `any`, `unknown`, `object`, `{}`, unrestricted records, or
+their input unchanged do not establish a boundary.
 
-Copy the plugin directory from [oxlint](references/oxlint/) into the target
-repository's owned tooling directory. The plugin is an ESLint-compatible JS
-plugin and has no runtime dependency on this skill directory. Register the
-copied `index.mjs` with the target's Oxlint configuration:
+### Tolerant boundary
+
+Use `boundary.tolerant({...})` only for a bounded compatibility need:
+independently evolving provider data, explicitly supported external versions,
+or a time-bounded legacy migration.
+
+```ts
+const adaptProviderEvent = boundary.tolerant({
+  source: "provider:event",
+  variants: [
+    {
+      schema: providerV1Schema,
+      convert: (validated) => ({ kind: "message", text: validated.text }),
+    },
+    {
+      schema: providerV2Schema,
+      convert: (validated) => ({ kind: "message", text: validated.message }),
+    },
+  ],
+  otherwise: failure("UNRECOGNIZED_PROVIDER_EVENT"),
+});
+```
+
+Keep the descriptor declarative: a non-empty static source, a finite non-empty
+variant list, a constraining schema and validated converter for every variant,
+and an explicit `failure(...)` fallback. The runtime tries variants in order,
+returns `success(ownedValue)` for the first recognized value, and returns the
+declared failure when none match. Keep converters inline so lint can inspect
+their results; no callback receives raw input.
+
+Keep the compatibility justification beside the declaration and add colocated
+tests for recognized and unrecognized input.
+
+## Enforce the declaration
+
+Copy [oxlint](references/oxlint/) into the target's owned tooling directory and
+register its `index.mjs`:
 
 ```json
 {
@@ -57,51 +87,48 @@ copied `index.mjs` with the target's Oxlint configuration:
   ],
   "settings": {
     "boundary-contracts": {
-      "ownedDecoderNames": ["ownedDecoder"],
-      "tolerantAdapterNames": ["tolerantAdapter"],
-      "successNames": ["success"],
       "failureNames": ["failure"]
     }
   },
   "rules": {
     "boundary-aware/require-declared-boundary": "error",
-    "boundary-aware/require-schema-for-owned-boundary": "error",
+    "boundary-aware/require-constraining-schema": "error",
+    "boundary-aware/require-bounded-tolerant-boundary": "error",
     "boundary-aware/no-raw-boundary-data-escape": "error"
   }
 }
 ```
 
-When this extension replaces Dillon Mulroy's generic policy, disable
-`anti-slop/no-unknown-parameters`, `anti-slop/no-runtime-typeof`, and
-`anti-slop/no-unsafe-dictionary-type`; keep the other generic rules enabled.
-Configure wrapper aliases explicitly instead of relying on directory names or
-comments.
+The rules enforce suspicious use of open parameters, constraining schemas,
+bounded tolerant descriptors, narrow converter results, and the absence of
+assertion laundering. A declaration discharges only the undeclared-boundary
+diagnostic; unrelated Anti-Slop rules continue to apply inside it.
 
-The plugin enforces syntax it can prove: direct raw-parameter escapes,
-obviously open output annotations, explicit schema-capability expressions, and
-the adapter result vocabulary. It cannot prove the implementation behind an
-imported schema or whether a selected property is semantically safe; runtime
-wrapper checks and the target repository's type checker remain responsible for
-those guarantees.
+When composing with Dillon Mulroy's generic policy, replace only the overlapping
+`anti-slop/no-unknown-parameters`, `anti-slop/no-runtime-typeof`, and
+`anti-slop/no-unsafe-dictionary-type` rules with the boundary-aware rules above.
+Keep every other generic rule at its intended severity.
+
+Prefer named top-level declarations in recognizable boundary or adapter
+modules. Treat that placement as review guidance rather than a path-based lint
+rule.
 
 ## Verify the contract
 
-Run the executable accepted and rejected fixtures from this skill directory:
+Run the runtime fixtures:
 
 ```bash
 node --test skills/boundary-contracts/fixtures/*.test.mjs
 ```
 
-With an Oxlint executable available, run the static fixture suite as well:
+Run the static fixtures with an installed Oxlint executable:
 
 ```bash
 OXLINT_BIN=/path/to/oxlint \
   node skills/boundary-contracts/fixtures/run-oxlint-fixtures.mjs
 ```
 
-The accepted fixtures cover a schema-backed owned decoder, a tolerant provider
-adapter, and an ordinary internal function. The rejected fixtures cover an
-undeclared raw boundary, handwritten owned-contract parsing, and an adapter
-that attempts to return raw data. The Oxlint fixtures also cover the selected
-EventPulse runtime-start and provider-event shapes, plus the handwritten
-`parseCompletion` shape that should be redirected to an owned decoder.
+The fixtures cover application-controlled input, current and legacy
+persistence, independently evolving provider data, precisely typed internal
+code, undeclared raw handling, non-constraining schemas, unbounded tolerant
+descriptors, unrecognized input, open results, and assertion laundering.

@@ -1,5 +1,5 @@
 const metadataSymbol = Symbol("boundary-contracts.metadata");
-const contractVersion = 1;
+const contractVersion = 2;
 
 /**
  * Error raised when a boundary implementation violates the wrapper contract.
@@ -13,7 +13,7 @@ export class BoundaryContractError extends TypeError {
 }
 
 /**
- * Error raised when an owned decoder's schema rejects raw input.
+ * Error raised when a strict boundary schema rejects raw input.
  */
 export class BoundaryValidationError extends BoundaryContractError {
   constructor(message) {
@@ -78,69 +78,149 @@ function hasExactKeys(value, expectedKeys) {
 }
 
 /**
- * Declare an owned decoder.
- *
- * The schema is intentionally structural so the contract works with any
- * schema library that exposes parse(input: unknown). The converter never sees
- * the raw input; it only receives the schema's validated result.
+ * Declare the strict/default transition from raw input to an owned value.
  */
-export function ownedDecoder(schema, convert) {
+export function boundary(descriptor) {
+  if (!hasExactKeys(descriptor, ["schema", "convert"])) {
+    throw new BoundaryContractError(
+      "BOUNDARY_DESCRIPTOR_REQUIRED",
+      "boundary(...) requires exactly schema and convert",
+    );
+  }
+  const { schema, convert } = descriptor;
   if (schema === null || schema === undefined || typeof schema.parse !== "function") {
     throw new BoundaryContractError(
       "SCHEMA_REQUIRED",
-      "ownedDecoder requires a schema with parse(input)"
+      "boundary(...) requires a schema with parse(input)",
     );
   }
   requireFunction(
     convert,
     "CONVERTER_REQUIRED",
-    "ownedDecoder requires a converter function"
+    "boundary(...) requires a converter function",
   );
 
   const decoder = (input) => {
     let validated;
-
     try {
       validated = schema.parse(input);
     } catch {
-      throw new BoundaryValidationError("The owned decoder schema rejected the input");
+      throw new BoundaryValidationError("The boundary schema rejected the input");
     }
-
     if (validated === undefined) {
       throw new BoundaryContractError(
         "SCHEMA_OUTPUT_REQUIRED",
-        "ownedDecoder schemas must return validated data"
+        "Boundary schemas must return validated data",
       );
     }
-
     const ownedValue = convert(validated);
-
     if (ownedValue === undefined) {
       throw new BoundaryContractError(
         "OWNED_OUTPUT_REQUIRED",
-        "ownedDecoder converters must return an owned value"
+        "Boundary converters must return an owned value",
       );
     }
-
     return ownedValue;
   };
 
   return declareBoundary(decoder, {
-    kind: "owned-decoder",
+    kind: "strict",
     accepts: "raw",
     returns: "owned",
     schemaBacked: true,
   });
 }
 
+function tolerantBoundary(descriptor) {
+  if (!hasExactKeys(descriptor, ["source", "variants", "otherwise"])) {
+    throw new BoundaryContractError(
+      "TOLERANT_DESCRIPTOR_REQUIRED",
+      "boundary.tolerant(...) requires a bounded descriptor",
+    );
+  }
+  if (typeof descriptor.source !== "string" || descriptor.source.trim() === "") {
+    throw new BoundaryContractError(
+      "TOLERANT_SOURCE_REQUIRED",
+      "boundary.tolerant(...) requires a non-empty source",
+    );
+  }
+  if (!Array.isArray(descriptor.variants) || descriptor.variants.length === 0) {
+    throw new BoundaryContractError(
+      "TOLERANT_VARIANTS_REQUIRED",
+      "boundary.tolerant(...) requires at least one schema-backed variant",
+    );
+  }
+  if (!isFailureResult(descriptor.otherwise)) {
+    throw new BoundaryContractError(
+      "TOLERANT_FAILURE_REQUIRED",
+      "boundary.tolerant(...) requires an explicit failure(...) fallback",
+    );
+  }
+
+  const variants = descriptor.variants.map((variant) => {
+    if (!hasExactKeys(variant, ["schema", "convert"]) || typeof variant.schema?.parse !== "function") {
+      throw new BoundaryContractError(
+        "SCHEMA_REQUIRED",
+        "Every tolerant variant requires a schema with parse(input)",
+      );
+    }
+    requireFunction(
+      variant.convert,
+      "CONVERTER_REQUIRED",
+      "Every tolerant variant requires a converter function",
+    );
+    return Object.freeze({ schema: variant.schema, convert: variant.convert });
+  });
+  const otherwise = descriptor.otherwise;
+  const source = descriptor.source.trim();
+
+  const adapter = (input) => {
+    for (const variant of variants) {
+      let validated;
+      try {
+        validated = variant.schema.parse(input);
+      } catch {
+        continue;
+      }
+      if (validated === undefined) {
+        throw new BoundaryContractError(
+          "SCHEMA_OUTPUT_REQUIRED",
+          "Tolerant boundary schemas must return validated data",
+        );
+      }
+
+      const ownedValue = variant.convert(validated);
+      if (ownedValue === undefined) {
+        throw new BoundaryContractError(
+          "OWNED_OUTPUT_REQUIRED",
+          "Tolerant boundary converters must return an owned value",
+        );
+      }
+      return success(ownedValue);
+    }
+
+    return otherwise;
+  };
+
+  return declareBoundary(adapter, {
+    kind: "tolerant",
+    accepts: "raw",
+    returns: "owned-or-failure",
+    schemaBacked: true,
+    source,
+  });
+}
+
+boundary.tolerant = tolerantBoundary;
+
 /**
- * Build a successful tolerant-adapter result.
+ * Build a successful tolerant-boundary result.
  */
 export function success(value) {
   if (value === undefined) {
     throw new BoundaryContractError(
       "OWNED_OUTPUT_REQUIRED",
-      "success(...) requires an owned value"
+      "success(...) requires an owned value",
     );
   }
 
@@ -148,20 +228,20 @@ export function success(value) {
 }
 
 /**
- * Build a declared tolerant-adapter failure. Keep the public failure narrow;
+ * Build a declared tolerant-boundary failure. Keep the public failure narrow;
  * raw provider payloads and arbitrary exception objects must not escape.
  */
 export function failure(code, message) {
   if (typeof code !== "string" || code.trim() === "") {
     throw new BoundaryContractError(
       "FAILURE_CODE_REQUIRED",
-      "failure(...) requires a non-empty code"
+      "failure(...) requires a non-empty code",
     );
   }
   if (message !== undefined && typeof message !== "string") {
     throw new BoundaryContractError(
       "FAILURE_MESSAGE_INVALID",
-      "failure(...) message must be a string when provided"
+      "failure(...) message must be a string when provided",
     );
   }
 
@@ -171,14 +251,6 @@ export function failure(code, message) {
   }
 
   return Object.freeze({ ok: false, error: Object.freeze(error) });
-}
-
-function isSuccessResult(value) {
-  return (
-    hasExactKeys(value, ["ok", "value"]) &&
-    value.ok === true &&
-    value.value !== undefined
-  );
 }
 
 function isFailureResult(value) {
@@ -194,59 +266,6 @@ function isFailureResult(value) {
         hasOwn(value.error, "message") &&
         typeof value.error.message === "string"))
   );
-}
-
-function assertAdapterResult(result) {
-  if (!isSuccessResult(result) && !isFailureResult(result)) {
-    throw new BoundaryContractError(
-      "ADAPTER_RESULT_REQUIRED",
-      "tolerantAdapter callbacks must return success(value) or failure(code, message)"
-    );
-  }
-
-  return result;
-}
-
-/**
- * Declare a tolerant adapter for independently evolving external input.
- *
- * A provider-data conversion exception becomes a declared failure rather than
- * leaking an exception or the provider payload into application code. A
- * malformed callback result is a contract error because it is an implementation
- * defect, not an expected provider variation.
- */
-export function tolerantAdapter(adapt) {
-  requireFunction(
-    adapt,
-    "ADAPTER_REQUIRED",
-    "tolerantAdapter requires an adapter function"
-  );
-
-  const adapter = (input) => {
-    let result;
-
-    try {
-      result = adapt(input);
-    } catch (error) {
-      if (error instanceof BoundaryContractError) {
-        throw error;
-      }
-
-      return failure(
-        "ADAPTER_EXCEPTION",
-        "The external input could not be converted"
-      );
-    }
-
-    return assertAdapterResult(result);
-  };
-
-  return declareBoundary(adapter, {
-    kind: "tolerant-adapter",
-    accepts: "raw",
-    returns: "owned-or-failure",
-    schemaBacked: false,
-  });
 }
 
 /**
@@ -270,7 +289,7 @@ export function requireBoundaryDeclaration(value) {
   if (metadata === null) {
     throw new BoundaryContractError(
       "DECLARED_BOUNDARY_REQUIRED",
-      "Raw-input functions must use ownedDecoder(...) or tolerantAdapter(...)"
+      "Raw-input functions must use boundary({...}) or boundary.tolerant({...})",
     );
   }
 

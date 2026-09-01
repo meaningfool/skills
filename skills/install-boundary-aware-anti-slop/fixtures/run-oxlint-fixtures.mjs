@@ -5,20 +5,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
-const pluginArgumentIndex = process.argv.indexOf("--plugin");
-const fixtureArgumentIndex = process.argv.indexOf("--fixture-directory");
+const pluginPath = resolve(fixtureDirectory, "../references/oxlint/index.mjs");
 const oxlintArgumentIndex = process.argv.indexOf("--oxlint");
-const pluginPath = resolve(
-  pluginArgumentIndex === -1
-    ? fixtureDirectory
-    : process.argv[pluginArgumentIndex + 1] ?? fixtureDirectory,
-  pluginArgumentIndex === -1 ? "../references/oxlint/index.mjs" : ".",
-);
-const fixtureRoot = resolve(
-  fixtureArgumentIndex === -1
-    ? fixtureDirectory
-    : process.argv[fixtureArgumentIndex + 1] ?? fixtureDirectory,
-);
 const oxlintPath =
   oxlintArgumentIndex === -1
     ? process.env.OXLINT_BIN
@@ -42,7 +30,8 @@ writeFileSync(
       jsPlugins: [pluginPath],
       rules: {
         "boundary-aware/require-declared-boundary": "error",
-        "boundary-aware/require-schema-for-owned-boundary": "error",
+        "boundary-aware/require-constraining-schema": "error",
+        "boundary-aware/require-bounded-tolerant-boundary": "error",
         "boundary-aware/no-raw-boundary-data-escape": "error",
       },
     },
@@ -51,15 +40,21 @@ writeFileSync(
 );
 
 try {
-  runExpectedPass("accepted.ts");
-  runExpectedPass("eventpulse-accepted.ts");
-  runExpectedFailures("rejected.ts", [
+  runExpectedPass("redesign-accepted.ts");
+  runExpectedFailures("redesign-rejected.ts", [
     "require-declared-boundary",
-    "require-schema-for-owned-boundary",
+    "require-constraining-schema",
+    "require-bounded-tolerant-boundary",
     "no-raw-boundary-data-escape",
   ]);
-  runExpectedFailures("eventpulse-rejected.ts", [
-    "require-declared-boundary",
+  runExpectedFailures("tolerant-schema-rejected.ts", [
+    "require-constraining-schema",
+  ]);
+  runExpectedFailures("obvious-open-schema-rejected.ts", [
+    "require-constraining-schema",
+  ]);
+  runExpectedFailures("named-converter-rejected.ts", [
+    "no-raw-boundary-data-escape",
   ]);
   console.log("Boundary-aware Oxlint fixtures passed.");
 } finally {
@@ -92,7 +87,7 @@ function runExpectedFailures(fileName, expectedRules) {
 function run(fileName) {
   return spawnSync(
     oxlintPath,
-    ["--config", configPath, resolve(fixtureRoot, "oxlint", fileName)],
+    ["--config", configPath, resolve(fixtureDirectory, "oxlint", fileName)],
     { encoding: "utf8" },
   );
 }

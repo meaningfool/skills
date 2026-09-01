@@ -1,20 +1,15 @@
 import {
+  getParameterAnnotation,
   getParameterName,
   isBoundaryCallbackParameter,
-  isUnknownParameter,
+  isFunctionNode,
+  isOpenType,
 } from "../shared.mjs";
 
 const functionVisitors = {
   ArrowFunctionExpression: checkFunction,
   FunctionDeclaration: checkFunction,
   FunctionExpression: checkFunction,
-  TSCallSignatureDeclaration: checkFunction,
-  TSConstructSignatureDeclaration: checkFunction,
-  TSConstructorType: checkFunction,
-  TSDeclareFunction: checkFunction,
-  TSEmptyBodyFunctionExpression: checkFunction,
-  TSFunctionType: checkFunction,
-  TSMethodSignature: checkFunction,
 };
 
 export const requireDeclaredBoundaryRule = {
@@ -22,11 +17,11 @@ export const requireDeclaredBoundaryRule = {
     type: "problem",
     docs: {
       description:
-        "Require raw unknown parameters to be declared by an ownedDecoder(...) or tolerantAdapter(...) boundary.",
+        "Require suspicious use of open runtime input to be moved into a boundary declaration.",
     },
     messages: {
       rawInputParameter:
-        "Parameter `{{parameter}}` accepts raw `unknown` data outside a declared boundary. Use an ownedDecoder(schema, convert) or tolerantAdapter(adapt) callback, then pass a named domain value inward.",
+        "Parameter `{{parameter}}` handles open runtime data outside a declared boundary. Improve the internal type, move validation to the real ingress, or use boundary({...}) or boundary.tolerant({...}).",
     },
   },
   create(context) {
@@ -41,15 +36,15 @@ export const requireDeclaredBoundaryRule = {
 
 function checkFunction(node, context) {
   for (const parameter of node.params ?? []) {
-    if (!isUnknownParameter(parameter)) {
+    if (!isOpenType(getParameterAnnotation(parameter)?.typeAnnotation)) {
       continue;
     }
 
     const parameterName = getParameterName(parameter, context.sourceCode);
 
     if (
-      parameterName === "cause" ||
-      isBoundaryCallbackParameter(node, parameter, context)
+      isBoundaryCallbackParameter(node, parameter, context) ||
+      !functionBodyReferences(node, parameterName)
     ) {
       continue;
     }
@@ -59,5 +54,30 @@ function checkFunction(node, context) {
       messageId: "rawInputParameter",
       data: { parameter: parameterName },
     });
+  }
+}
+
+function functionBodyReferences(functionNode, parameterName) {
+  let found = false;
+  visit(functionNode.body, functionNode);
+  return found;
+
+  function visit(node, rootFunction) {
+    if (found || node === null || typeof node !== "object") return;
+    if (node !== rootFunction.body && isFunctionNode(node)) return;
+    if (node.type === "Identifier" && node.name === parameterName) {
+      found = true;
+      return;
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "parent" || key === "tokens" || key === "comments" || key === "loc") {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        for (const child of value) visit(child, rootFunction);
+      } else {
+        visit(value, rootFunction);
+      }
+    }
   }
 }
