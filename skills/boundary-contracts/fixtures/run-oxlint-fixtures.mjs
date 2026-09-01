@@ -30,7 +30,8 @@ writeFileSync(
       jsPlugins: [pluginPath],
       rules: {
         "boundary-aware/require-declared-boundary": "error",
-        "boundary-aware/require-schema-for-owned-boundary": "error",
+        "boundary-aware/require-constraining-schema": "error",
+        "boundary-aware/require-bounded-tolerant-boundary": "error",
         "boundary-aware/no-raw-boundary-data-escape": "error",
       },
     },
@@ -39,15 +40,21 @@ writeFileSync(
 );
 
 try {
-  runExpectedPass("accepted.ts");
-  runExpectedPass("eventpulse-accepted.ts");
-  runExpectedFailures("rejected.ts", [
+  runExpectedPass("redesign-accepted.ts");
+  runExpectedFailures("redesign-rejected.ts", [
     "require-declared-boundary",
-    "require-schema-for-owned-boundary",
+    "require-constraining-schema",
+    "require-bounded-tolerant-boundary",
     "no-raw-boundary-data-escape",
   ]);
-  runExpectedFailures("eventpulse-rejected.ts", [
-    "require-declared-boundary",
+  runExpectedFailures("tolerant-schema-rejected.ts", [
+    "require-constraining-schema",
+  ]);
+  runExpectedFailures("obvious-open-schema-rejected.ts", [
+    "require-constraining-schema",
+  ]);
+  runExpectedFailures("named-converter-rejected.ts", [
+    "no-raw-boundary-data-escape",
   ]);
   console.log("Boundary-aware Oxlint fixtures passed.");
 } finally {

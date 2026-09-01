@@ -1,5 +1,5 @@
 /**
- * Paths owned by the companion installation or its later assessment command.
+ * Paths owned by the companion installation.
  * Keep these patterns narrow: target application and test directories remain
  * part of normal lint and formatting coverage.
  */
@@ -8,5 +8,4 @@ export const managedAssetIgnorePatterns = [
   "tools/oxlint/anti-slop/**",
   "tools/oxlint/boundary-aware/**",
   "tools/boundary-contracts/**",
-  "reports/anti-slop/**",
 ];

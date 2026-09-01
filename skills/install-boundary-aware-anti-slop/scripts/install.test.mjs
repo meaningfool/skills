@@ -39,8 +39,20 @@ try {
     true,
   );
   assert.equal(
+    existsSync(join(root, "tools/oxlint/boundary-aware/assessment.mjs")),
+    false,
+  );
+  assert.equal(
     existsSync(join(root, "tools/boundary-contracts/boundary-contracts.mjs")),
     true,
+  );
+  assert.equal(
+    existsSync(join(root, "tools/boundary-contracts/boundary-contracts.d.mts")),
+    true,
+  );
+  assert.equal(
+    existsSync(join(root, "tools/boundary-contracts/boundary-contracts.d.ts")),
+    false,
   );
 
   const pluginMtime = statSync(join(root, "tools/oxlint/boundary-aware/index.mjs")).mtimeMs;
@@ -60,6 +72,12 @@ try {
   const provenancePath = join(pluginRoot, ".boundary-aware.json");
   const oldProvenance = JSON.parse(readFileSync(provenancePath, "utf8"));
   const oldContent = "// old managed plugin\n";
+  const retiredAssessmentContent = "// retired managed assessment runner\n";
+  writeFileSync(join(pluginRoot, "assessment.mjs"), retiredAssessmentContent);
+  oldProvenance.files.push({
+    path: "assessment.mjs",
+    sha256: createHash("sha256").update(retiredAssessmentContent).digest("hex"),
+  });
   writeFileSync(join(pluginRoot, "index.mjs"), oldContent);
   writeFileSync(
     provenancePath,
@@ -99,6 +117,7 @@ try {
   const upgraded = installBoundaryAssets({ cwd: root });
   assert.equal(upgraded.changed, true);
   assert.equal(readFileSync(unrelatedPath, "utf8"), "{\"keep\":true}\n");
+  assert.equal(existsSync(join(pluginRoot, "assessment.mjs")), false);
   assert.match(readFileSync(join(pluginRoot, "index.mjs"), "utf8"), /boundaryAwarePlugin/);
 
   const conflictRoot = mkdtempSync(join(tmpdir(), "boundary-aware-conflict-test-"));

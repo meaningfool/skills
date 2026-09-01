@@ -2,93 +2,104 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  boundary,
   BoundaryContractError,
   failure,
-  getBoundaryMetadata,
-  ownedDecoder,
   requireBoundaryDeclaration,
-  success,
-  tolerantAdapter,
 } from "../references/boundary-contracts.mjs";
-
-function isRecord(value) {
-  return value !== null && typeof value === "object";
-}
 
 test("rejected: an undeclared raw-input function is not a boundary", () => {
   const undeclaredRawBoundary = (input) => input;
 
-  assert.equal(getBoundaryMetadata(undeclaredRawBoundary), null);
   assert.throws(
     () => requireBoundaryDeclaration(undeclaredRawBoundary),
     (error) =>
       error instanceof BoundaryContractError &&
-      error.code === "DECLARED_BOUNDARY_REQUIRED"
+      error.code === "DECLARED_BOUNDARY_REQUIRED",
   );
 });
 
-test("rejected: handwritten owned parsing cannot stand in for a declaration", () => {
-  const handwrittenDecoder = (input) => {
-    if (!isRecord(input) || typeof input.id !== "string") {
-      throw new Error("invalid id");
-    }
-
-    return { id: input.id };
-  };
-
+test("rejected: strict boundary requires an exact schema-backed descriptor", () => {
   assert.throws(
-    () => requireBoundaryDeclaration(handwrittenDecoder),
+    () => boundary({ convert: (value) => value }),
     (error) =>
       error instanceof BoundaryContractError &&
-      error.code === "DECLARED_BOUNDARY_REQUIRED"
+      error.code === "BOUNDARY_DESCRIPTOR_REQUIRED",
+  );
+  assert.throws(
+    () => boundary({ schema: null, convert: (value) => value }),
+    (error) =>
+      error instanceof BoundaryContractError && error.code === "SCHEMA_REQUIRED",
   );
 });
 
-test("rejected: an owned decoder requires an explicit schema capability", () => {
+test("rejected: strict schemas and converters must return owned data", () => {
+  const emptySchemaBoundary = boundary({
+    schema: { parse: () => undefined },
+    convert: (value) => value,
+  });
+  const emptyConverterBoundary = boundary({
+    schema: { parse: () => ({ id: "x" }) },
+    convert: () => undefined,
+  });
+
   assert.throws(
-    () => ownedDecoder(null, (value) => value),
+    () => emptySchemaBoundary({}),
     (error) =>
-      error instanceof BoundaryContractError && error.code === "SCHEMA_REQUIRED"
+      error instanceof BoundaryContractError &&
+      error.code === "SCHEMA_OUTPUT_REQUIRED",
+  );
+  assert.throws(
+    () => emptyConverterBoundary({}),
+    (error) =>
+      error instanceof BoundaryContractError &&
+      error.code === "OWNED_OUTPUT_REQUIRED",
   );
 });
 
-test("rejected: an owned decoder schema must return validated data", () => {
-  const emptySchema = { parse: () => undefined };
-  const decodeEmpty = ownedDecoder(emptySchema, (value) => value);
-
+test("rejected: tolerant boundary requires a bounded descriptor", () => {
   assert.throws(
-    () => decodeEmpty({}),
+    () => boundary.tolerant({
+      source: "",
+      variants: [],
+      otherwise: failure("UNRECOGNIZED"),
+    }),
     (error) =>
       error instanceof BoundaryContractError &&
-      error.code === "SCHEMA_OUTPUT_REQUIRED"
+      error.code === "TOLERANT_SOURCE_REQUIRED",
+  );
+  assert.throws(
+    () => boundary.tolerant({
+      source: "provider:event",
+      variants: [],
+      otherwise: failure("UNRECOGNIZED"),
+    }),
+    (error) =>
+      error instanceof BoundaryContractError &&
+      error.code === "TOLERANT_VARIANTS_REQUIRED",
   );
 });
 
-test("rejected: raw adapter output is not a successful adapter result", () => {
-  const rawOutputAdapter = tolerantAdapter((input) => input);
-
+test("rejected: tolerant variants require schema and owned output", () => {
   assert.throws(
-    () => rawOutputAdapter({ provider: "payload" }),
+    () => boundary.tolerant({
+      source: "provider:event",
+      variants: [{ schema: null, convert: (value) => value }],
+      otherwise: failure("UNRECOGNIZED"),
+    }),
     (error) =>
-      error instanceof BoundaryContractError &&
-      error.code === "ADAPTER_RESULT_REQUIRED"
+      error instanceof BoundaryContractError && error.code === "SCHEMA_REQUIRED",
   );
-});
 
-test("rejected: malformed result helpers remain contract errors", () => {
-  const malformedFailureAdapter = tolerantAdapter(() => failure(42));
-  const malformedSuccessAdapter = tolerantAdapter(() => success(undefined));
-
+  const emptyConverterBoundary = boundary.tolerant({
+    source: "provider:event",
+    variants: [{ schema: { parse: () => ({ id: "x" }) }, convert: () => undefined }],
+    otherwise: failure("UNRECOGNIZED"),
+  });
   assert.throws(
-    () => malformedFailureAdapter({}),
+    () => emptyConverterBoundary({}),
     (error) =>
       error instanceof BoundaryContractError &&
-      error.code === "FAILURE_CODE_REQUIRED"
-  );
-  assert.throws(
-    () => malformedSuccessAdapter({}),
-    (error) =>
-      error instanceof BoundaryContractError &&
-      error.code === "OWNED_OUTPUT_REQUIRED"
+      error.code === "OWNED_OUTPUT_REQUIRED",
   );
 });

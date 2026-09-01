@@ -37,7 +37,8 @@ const genericRules = [
 ];
 const boundaryRules = [
   "boundary-aware/require-declared-boundary",
-  "boundary-aware/require-schema-for-owned-boundary",
+  "boundary-aware/require-constraining-schema",
+  "boundary-aware/require-bounded-tolerant-boundary",
   "boundary-aware/no-raw-boundary-data-escape",
 ];
 const root = mkdtempSync(join(tmpdir(), "boundary-aware-managed-assets-test-"));
@@ -47,6 +48,7 @@ assert.equal(managedAssetIgnorePatterns.includes("tools/**"), false);
 assert.equal(managedAssetIgnorePatterns.includes("src/**"), false);
 assert.equal(managedAssetIgnorePatterns.includes("test/**"), false);
 assert.equal(managedAssetIgnorePatterns.includes("tests/**"), false);
+assert.equal(managedAssetIgnorePatterns.includes("reports/anti-slop/**"), false);
 
 test.after(() => {
   if (process.env.KEEP_MANAGED_ASSET_TEST_ARTIFACTS === "1") {
@@ -133,6 +135,30 @@ async function testStandaloneOxlintAndOxfmt({ toolRoot }) {
     run(oxlint, ["--config", ".oxlintrc.json", "."], target),
     "standalone Oxlint after repair",
   );
+  writeText(
+    join(target, "src/application.ts"),
+    [
+      "import { boundary } from '../tools/boundary-contracts/boundary-contracts.mjs';",
+      "type Request = Readonly<{ requestId: string }>;",
+      "declare const requestSchema: { parse(input: unknown): Request };",
+      "export const decodeRequest = boundary({",
+      "  schema: requestSchema,",
+      "  convert: (validated): Request => validated as Request,",
+      "});",
+      "",
+    ].join("\n"),
+  );
+  const genericInsideBoundary = run(oxlint, ["--config", ".oxlintrc.json", "."], target);
+  assert.notEqual(
+    genericInsideBoundary.status,
+    0,
+    "boundary declarations must not silence unrelated generic rules",
+  );
+  assert.match(
+    `${genericInsideBoundary.stdout}\n${genericInsideBoundary.stderr}`,
+    /require-safety-comment-for-type-assertion/,
+  );
+  writeText(join(target, "src/application.ts"), "export const applicationValue = 1;\n");
   const boundaryRerun = installBoundaryAssets({ cwd: target });
   assert.equal(boundaryRerun.changed, false);
   assert.equal(
@@ -260,9 +286,6 @@ function lintConfig() {
     ],
     settings: {
       "boundary-contracts": {
-        ownedDecoderNames: ["ownedDecoder"],
-        tolerantAdapterNames: ["tolerantAdapter"],
-        successNames: ["success"],
         failureNames: ["failure"],
       },
     },
@@ -279,14 +302,12 @@ function writeManagedViolations(target) {
   writeText(join(target, "tools/oxlint/anti-slop/managed-violation.ts"), content);
   writeText(join(target, "tools/oxlint/boundary-aware/managed-violation.mjs"), content);
   writeText(join(target, "tools/boundary-contracts/managed-violation.mjs"), content);
-  writeText(join(target, "reports/anti-slop/managed-violation.ts"), content);
 }
 
 async function assertIdempotentInstallation(target) {
   rmSync(join(target, "tools/oxlint/anti-slop/managed-violation.ts"));
   rmSync(join(target, "tools/oxlint/boundary-aware/managed-violation.mjs"));
   rmSync(join(target, "tools/boundary-contracts/managed-violation.mjs"));
-  rmSync(join(target, "reports/anti-slop/managed-violation.ts"));
   const before = snapshot(target);
   const dependency = await installPinnedSkill(
     dependencyManifest,

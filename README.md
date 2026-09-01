@@ -18,11 +18,11 @@ mandatory linear workflow:
 
 ## Standalone skills
 
-- `boundary-contracts` defines executable declarations for owned decoders and
-  tolerant external adapters, plus the boundary-aware Oxlint rules and
-  fixtures that enforce them.
+- `boundary-contracts` defines executable strict/default and bounded tolerant
+  trust transitions, plus the boundary-aware Oxlint rules and fixtures that
+  enforce them.
 - `install-boundary-aware-anti-slop` composes the pinned generic policy with
-  the boundary-aware plugin, wrappers, safe asset installer, assessment mode,
+  the boundary-aware plugin, runtime, safe asset installer, brownfield check,
   and verification fixtures.
 - `let-me-see` prepares an environment and manual verification scenarios.
 - `workspace-clean-up` audits and cleans Git worktrees, branches, and stashes.
@@ -67,8 +67,7 @@ idempotency, and hash-mismatch rejection:
 node scripts/install-pinned-skill.test.mjs
 ```
 
-Assessment mode keeps the complete policy in a separate Oxlint configuration
-and records stable findings and toolchain diagnostics under
-`reports/anti-slop/`. It is selected for audit, assessment, inventory, and
-remediation-planning requests; enforcement is an explicit or clean-assessment
-transition.
+Brownfield mode keeps the complete policy in a separate Oxlint configuration
+and exposes ordinary findings through an opt-in command without generated
+reports, snapshots, baselines, or suppressions. Normal enforcement is an
+explicit or clean-check transition.

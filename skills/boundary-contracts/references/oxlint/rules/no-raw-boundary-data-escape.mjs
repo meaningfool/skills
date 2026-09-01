@@ -1,14 +1,8 @@
 import {
   collectReturnStatements,
-  containsDirectParameterValue,
-  getBoundaryHelperNames,
-  getBoundaryCallback,
-  getBoundaryWrapperKind,
   getFunctionReturnType,
-  getParameterName,
   isOpenExpression,
   isOpenType,
-  isUnknownParameter,
   unwrapExpression,
 } from "../shared.mjs";
 
@@ -17,15 +11,13 @@ export const noRawBoundaryDataEscapeRule = {
     type: "problem",
     docs: {
       description:
-        "Prevent raw provider values and open output types from escaping declared boundaries.",
+        "Prevent open results and assertion laundering from escaping boundary converters.",
     },
     messages: {
-      rawEscape:
-        "Raw boundary data escapes from this {{kind}}. Return a narrow owned value; tolerantAdapter(...) must use success(ownedValue) or failure(code, message).",
+      inlineConverterRequired:
+        "Keep boundary converters inline so their result can be checked for open output and assertion laundering.",
       openOutput:
-        "This {{kind}} returns an open `unknown`/dictionary shape. Validate or map the boundary value to a named owned contract before returning it.",
-      adapterResult:
-        "A tolerantAdapter(...) callback must return success(ownedValue) or failure(code, message), never raw provider data.",
+        "This boundary converter returns an open value. Return a narrow owned contract without any, unknown, unrestricted records, or assertion laundering.",
     },
   },
   create(context) {
@@ -44,126 +36,103 @@ export const noRawBoundaryDataEscapeRule = {
         );
       },
       CallExpression(node) {
-        const kind = getBoundaryWrapperKind(node.callee, context);
-
-        if (kind === null) {
-          return;
-        }
-
-        const callback = getBoundaryCallback(node, context, kind);
-
-        if (callback === null) {
-          return;
-        }
-
-        const callbackKind = kind === "owned-decoder" ? "owned decoder" : "tolerant adapter";
-        const returnType = getFunctionReturnType(callback);
-
-        if (isOpenType(returnType, typeAliases)) {
+        const strictConvert = getStrictConvert(node);
+        if (strictConvert !== undefined && !isCallback(unwrapExpression(strictConvert))) {
           context.report({
-            node: returnType,
-            messageId: "openOutput",
-            data: { kind: callbackKind },
+            node: strictConvert ?? node,
+            messageId: "inlineConverterRequired",
           });
+          return;
         }
-
-        const rawParameterNames = new Set(
-          kind === "tolerant-adapter" && callback.params[0]
-            ? [getParameterName(callback.params[0], context.sourceCode)]
-            : [],
-        );
-        const openOwnedParameterNames = new Set(
-          kind === "owned-decoder"
-            ? callback.params
-                .filter(isUnknownParameter)
-                .map((parameter) => getParameterName(parameter, context.sourceCode))
-            : [],
-        );
-
-        const helperNames = getBoundaryHelperNames(context);
-
-        for (const returned of collectReturnStatements(callback)) {
-          const expression = returned.argument ?? returned.expression ?? returned;
-
-          if (kind === "tolerant-adapter") {
-            checkAdapterReturn(
-              expression,
-              rawParameterNames,
-              helperNames,
-              typeAliases,
-              context,
-              returned,
-            );
-          } else if (
-            containsDirectParameterValue(expression, openOwnedParameterNames) ||
-            isOpenExpression(expression, typeAliases)
-          ) {
-            context.report({
-              node: expression,
-              messageId: "openOutput",
-              data: { kind: callbackKind },
-            });
-          }
+        for (const callback of getDescriptorCallbacks(node)) {
+          checkConverter(callback, typeAliases, context);
         }
       },
     };
   },
 };
 
-function checkAdapterReturn(
-  expression,
-  rawParameterNames,
-  helperNames,
-  typeAliases,
-  context,
-  node,
-) {
-  const value = unwrapExpression(expression);
-
-  if (value === null) {
-    context.report({ node, messageId: "adapterResult" });
-    return;
-  }
-
-  if (value.type === "CallExpression") {
-    const helperName = getStaticName(value.callee);
-
-    if (helperNames.failure.includes(helperName)) {
-      return;
-    }
-
-    if (helperNames.success.includes(helperName)) {
-      const output = value.arguments?.[0];
-
-      if (
-        output === undefined ||
-        containsDirectParameterValue(output, rawParameterNames) ||
-        isOpenExpression(output, typeAliases)
-      ) {
-        context.report({ node: output ?? value, messageId: "rawEscape", data: { kind: "tolerant adapter" } });
-      }
-
-      return;
-    }
-  }
-
-  context.report({ node: value, messageId: "adapterResult" });
+function getStrictConvert(call) {
+  const callee = unwrapExpression(call.callee);
+  if (callee?.type !== "Identifier" || callee.name !== "boundary") return undefined;
+  const descriptor = unwrapExpression(call.arguments?.[0]);
+  if (descriptor?.type !== "ObjectExpression") return null;
+  return propertyValue(descriptor, "convert");
 }
 
-function getStaticName(node) {
-  const expression = unwrapExpression(node);
+function getDescriptorCallbacks(call) {
+  const callee = unwrapExpression(call.callee);
+  const descriptor = unwrapExpression(call.arguments?.[0]);
+  if (descriptor?.type !== "ObjectExpression") return [];
 
-  if (expression?.type === "Identifier") {
-    return expression.name;
+  if (callee?.type === "Identifier" && callee.name === "boundary") {
+    const convert = unwrapExpression(propertyValue(descriptor, "convert"));
+    return isCallback(convert) ? [convert] : [];
   }
 
-  if (
-    expression?.type === "MemberExpression" &&
-    expression.computed === false &&
-    expression.property?.type === "Identifier"
-  ) {
-    return expression.property.name;
+  if (!isTolerantCallee(callee)) return [];
+  const variants = unwrapExpression(propertyValue(descriptor, "variants"));
+  if (variants?.type !== "ArrayExpression") return [];
+  return variants.elements.flatMap((element) => {
+    const variant = unwrapExpression(element);
+    if (variant?.type !== "ObjectExpression") return [];
+    const convert = unwrapExpression(propertyValue(variant, "convert"));
+    return isCallback(convert) ? [convert] : [];
+  });
+}
+
+function checkConverter(callback, typeAliases, context) {
+  const returnType = getFunctionReturnType(callback);
+  if (isOpenType(returnType, typeAliases)) {
+    context.report({ node: returnType, messageId: "openOutput" });
   }
 
-  return null;
+  for (const returned of collectReturnStatements(callback)) {
+    const expression = returned.argument ?? returned.expression ?? returned;
+    if (containsOpenAssertion(expression, typeAliases)) {
+      context.report({ node: expression, messageId: "openOutput" });
+    }
+  }
+}
+
+function containsOpenAssertion(node, aliases, seen = new Set()) {
+  if (node === null || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+  if (isOpenExpression(node, aliases)) return true;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "tokens" || key === "comments" || key === "loc") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (value.some((child) => containsOpenAssertion(child, aliases, seen))) return true;
+    } else if (containsOpenAssertion(value, aliases, seen)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isTolerantCallee(callee) {
+  return (
+    callee?.type === "MemberExpression" &&
+    !callee.computed &&
+    callee.object?.type === "Identifier" &&
+    callee.object.name === "boundary" &&
+    callee.property?.type === "Identifier" &&
+    callee.property.name === "tolerant"
+  );
+}
+
+function propertyValue(object, name) {
+  const property = object.properties.find((candidate) =>
+    candidate.type === "Property" &&
+    !candidate.computed &&
+    ((candidate.key.type === "Identifier" && candidate.key.name === name) ||
+      (candidate.key.type === "Literal" && candidate.key.value === name)),
+  );
+  return property?.value ?? null;
+}
+
+function isCallback(node) {
+  return node?.type === "ArrowFunctionExpression" || node?.type === "FunctionExpression";
 }
