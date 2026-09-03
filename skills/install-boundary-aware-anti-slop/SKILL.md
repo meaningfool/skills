@@ -41,6 +41,14 @@ complete brownfield check is clean through genuine remediation.
 Keep every finding active. Use no baselines, suppressions, lower severities,
 generated reports, snapshots, before/after captures, or report workflow.
 
+During remediation, validate the fields and types the consumer relies on;
+JSON-only sanitation is not an owned application contract. Keep generic JSON
+observation as direct schema use in tests or sinks, with its assertions intact.
+Account for affected consumers before removing any declaration. Require tests
+of the real decoder using valid JSON with missing fields, wrong types, and
+malformed nested values, as applicable. A replacement with JSON-only parsing
+must fail those tests. Review imported/custom schemas even when lint is clean.
+
 ## Install the pinned generic dependency
 
 Resolve this skill's owning repository, then use
