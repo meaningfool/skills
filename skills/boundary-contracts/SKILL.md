@@ -39,6 +39,13 @@ Keep the converter inline so lint can inspect its result.
 Schemas that return `any`, `unknown`, `object`, `{}`, unrestricted records, or
 their input unchanged do not establish a boundary.
 
+Match the schema to the consumer's fields, types, and accepted variants.
+Generic JSON validation alone is not a consumer contract. Use a concrete schema
+after JSON sanitation when needed, for example
+`z.json().pipe(z.object({ service: z.string() }))`. Use a schema directly for
+generic JSON observation in a test or sink; retain the consumer assertions and
+verify that no application contract is being bypassed.
+
 ### Tolerant boundary
 
 Use `boundary.tolerant({...})` only for a bounded compatibility need:
@@ -114,6 +121,16 @@ modules. Treat that placement as review guidance rather than a path-based lint
 rule.
 
 ## Verify the contract
+
+Test the real decoder with valid JSON that violates its consumer contract:
+missing required fields, wrong types, and malformed nested values. Check the
+intended handling of additional fields and inherited required fields. Prove
+that replacing concrete validation with JSON-only parsing breaks these tests.
+Trace affected consumers and report this evidence for each changed declaration,
+including why a removed declaration is no longer a trust transition.
+
+Treat lint as a guard against recognizable patterns, not proof of semantic
+correctness. Imported schemas and custom validators still need this review.
 
 Run the runtime fixtures:
 
