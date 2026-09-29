@@ -8,9 +8,9 @@ description: "Use when the user asks to wrap up repo work: clean up already comp
 Finish the agreed work with a clean repo, useful paper trail, and minimal back-and-forth.
 
 Treat a wrap-up request as authorization to finish the agreed work and its cleanup,
-including removing the completed worktree. Run only the remaining applicable
-steps; acknowledge completed or inapplicable steps without repeating them. Name
-any blocked applicable step and its exact blocker.
+including retiring completed worktrees through the supported lifecycle. Run only
+the remaining applicable steps; acknowledge completed or inapplicable steps
+without repeating them. Name any blocked applicable step and its exact blocker.
 
 ## Orient and Route
 
@@ -72,16 +72,23 @@ a pending PR remain merge blockers.
 
 - Update the primary checkout to the merged base branch when applicable.
 - Delete the merged local branch and the merged remote branch when appropriate.
-- Remove the completed worktree.
-- Verify primary checkout status, worktree list, and any applicable PR and issue state once.
+- Preserve needed ignored files and nested-repository work before retiring a checkout; the app's recovery snapshot does not preserve ignored files.
+- Retire completed worktrees through the environment's supported lifecycle. In Codex, use the worktree archive tool for additional attached worktrees. For the conversation's original managed worktree, finish other cleanup and let conversation archival retire it. Its absence from the attachment list is not itself a blocker.
+- Archive the conversation only when the user asks to archive it. Otherwise, report readiness and leave that final action to the user.
+- Verify primary checkout status and any applicable PR and issue state once. When claiming a worktree was removed, verify its absence from both disk and Git's worktree list.
 
-If the completed worktree is the active thread worktree, remove it as the final
-cleanup action after all verification that requires the worktree is done. Do not
-keep the active completed worktree merely because the thread is still open. If
-the environment prevents removing the active worktree safely, say that cleanup is
-blocked and provide the exact command or follow-up needed.
+Conversation archival performs background cleanup after a grace period (about a
+minute in the observed Codex app). Account for that delay when verifying an archive;
+an immediate remaining checkout is not evidence of failure. Finish wrap-up without
+waiting for the user to archive or polling for that action.
 
-## Style
+## Final Verdict
 
-- Batch checks and cleanup verification; avoid repeated redundant status probes.
-- Prefer one concise final report with the applicable PR, merge commit, issue state, cleanup performed, and anything left open.
+Lead the final report with exactly one of these two statuses:
+
+- **Ready to archive**: all agreed work is complete and preserved; cleanup is finished, or only conversation archival and its normal automatic cleanup remain. Briefly state which applies.
+- **Not ready to archive**: agreed work, required checks, publication, preservation, or a cleanup problem still needs attention. State what remains and the concrete next action.
+
+Keep cleanup details beneath that verdict rather than introducing additional
+statuses. Include the applicable PR, merge commit, issue state, and cleanup outcome.
+Batch verification and keep the report concise.
