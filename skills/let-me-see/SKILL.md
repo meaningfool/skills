@@ -15,7 +15,12 @@ Prepare both a ready-to-use environment and ready-to-use scenarios so the user c
 
 ## Setup the testing environment
 
-Find and follow any applicable deployment guidelines. Set up the testing environment, resolve any port conflicts according to those guidelines, then verify that the starting state is ready for the user.
+Find and follow applicable repository instructions. Set up the testing environment
+and verify that the starting state is ready for the user.
+
+Keep resources needed for review and their workspace available. Report how to
+access the preview and how to stop resources started for it. Follow
+repository-specific lifecycle instructions when available.
 
 ## Report
 
