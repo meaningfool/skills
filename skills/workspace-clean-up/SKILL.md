@@ -107,6 +107,13 @@ End the inventory with an ordered queue:
 
 Then ask about the first item only. After each approved destructive action, verify the relevant state and move to the next item.
 
+## Local resources before retirement
+
+Before retiring a workspace, release resources owned by its task and verify
+cleanup. Follow repository-specific lifecycle instructions when available.
+Preserve resources and their workspace while they are still needed for active
+work or review. Leave resources with unknown ownership untouched and report them.
+
 ## Recommendations
 
 Default recommendations:

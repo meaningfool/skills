@@ -70,6 +70,8 @@ a pending PR remain merge blockers.
 
 ## Cleanup
 
+- Before retiring the workspace, release resources owned by the task and verify cleanup. Follow repository-specific lifecycle instructions when available. Leave resources with unknown ownership untouched and report them.
+- Preserve resources and their workspace while they are still needed for review.
 - Update the primary checkout to the merged base branch when applicable.
 - Delete the merged local branch and the merged remote branch when appropriate.
 - Preserve needed ignored files and nested-repository work before retiring a checkout; the app's recovery snapshot does not preserve ignored files.
