@@ -24,6 +24,8 @@ mandatory linear workflow:
 - `install-boundary-aware-anti-slop` composes the pinned generic policy with
   the boundary-aware plugin, runtime, safe asset installer, brownfield check,
   and verification fixtures.
+- `test-policy` applies portable test-quality principles before implementation
+  and during review; its bundled procedure also supports requested suite audits.
 - `let-me-see` prepares an environment and manual verification scenarios.
 - `workspace-clean-up` audits and cleans Git worktrees, branches, and stashes.
 - `wrap-up` completes repository work through PR, merge, and cleanup.
