@@ -69,36 +69,19 @@ Examples:
 - A product user-facing web app and an internal operator CLI are different boundaries because their consumers differ, even if both ultimately call the same backend functions.
 - A payment provider's webhook telling the merchant a payment settled completes the merchant's "take a payment" capability. It is not a separate boundary from the provider to the merchant.
 
-### Consumer
+### Consumer, provider, and component
 
-- Model a role more than a specific person, so one person can hold many roles.
-- Merge role names that share goals (what they want to achieve) and capabilities, since documents often use several names for one role. Split only where goals or capabilities diverge.
+- Model a consumer as a role more than a specific person, so one person can hold many roles. Merge role names that share goals (what they want to achieve) and capabilities, since documents often use several names for one role; split only where they diverge.
+- Name as provider what the consumer believes it is using, usually the whole product. The apps, servers, background services, and third-party services that deliver it stay inside it until a lower level opens it.
+- A component holds its own responsibility, authority, or lifecycle; being separately deployed, stateful, or named in the architecture is not enough. Name it for its stable responsibility, not its technology. A client that only presents or relays an interface is evidence for that interface, not a component.
 
 Examples:
 
-- A requester and an approver may be the same employee, but they may be modeled as different consumers or as a single consumer with a permission attribute.
-- Free and paid users may stay one consumer with a plan attribute until their goals, capabilities, or resource model diverge enough to create different boundary stories.
+- A requester and an approver may be the same employee, modeled as different consumers or as one consumer with a permission attribute. Free and paid users stay one consumer until their goals, capabilities, or resources diverge.
 - "Customer", "account owner", and "key holder" in different documents are one role when their goals and capabilities are the same.
-
-### Provider
-
-- Default to the product or system being designed unless another provider is clearly visible to the consumer. Its apps, servers, background services, and the third-party services it relies on are inside it.
-
-Examples:
-
-- A payment processor is a provider for a merchant. A fraud-scoring module inside it is not a provider to the merchant unless fraud review is exposed, but it may be a provider to internal components or to a fraud analyst who directly works with it.
-- A feature-flag service is not a provider to end users when it only selects variants behind the scenes. It is a provider to release managers if they configure flags, inspect rollout state, or trigger rollbacks.
-- A product that uses a hosted identity service for sign-in stays the provider of sign-in, unless its users knowingly go to the identity service's own pages and treat it as a separate service.
-
-### Component
-
-- A component holds its own responsibility, authority, or lifecycle. Being separately deployed, stateful, or named in the architecture does not make something a component.
-- Name a component for its stable responsibility, not its technology.
-- A client that only presents or relays an interface is evidence for that interface, not a component.
-
-Examples:
-
-- Opening an online store shows a storefront component (serves Shopper › Browsing and Ordering), a payments component (serves Shopper › Ordering), and an inventory component. The storefront asks payments to charge an order; the card network is an outside service of the payments component.
+- A fraud-scoring module inside a payment processor is not a provider to the merchant unless fraud review is exposed, but it may be one to a fraud analyst who works with it directly. A feature-flag service is a provider to release managers who configure flags, not to end users.
+- A product that uses a hosted identity service for sign-in stays the provider of sign-in, unless its users knowingly go to that service's own pages.
+- Opening an online store shows a storefront component (serves Shopper › Browsing and Ordering), a payments component (serves Shopper › Ordering), and an inventory component. The card network is an outside service of the payments component.
 
 ### Resource
 
@@ -111,10 +94,8 @@ Examples:
 
 - An invitation link may be a resource if the consumer can disable, regenerate, expire, or inspect it. The copied URL and QR code are representations of that link.
 - A bank statement is a resource when consumers can select, filter, and manage it. The PDF export of a bank statement is only a representation of that resource.
-- An API key is a resource in the account and access area, where the customer creates and revokes it. In the API itself it only authenticates calls, so it is not one of the API's resources.
-- A rate limit is a constraint of the API, not a resource.
-- A balance changes through recorded adjustments. The balance is the resource; each adjustment record is how "adjust balance" is implemented.
-- A live progress stream delivers "follow an order". The order and its status are the resource and its property; the stream is not a resource.
+- An API key is a resource where the customer creates and revokes it; in the API itself it only authenticates calls. A rate limit is a constraint of the API, not a resource.
+- A balance is the resource; the adjustment records behind it are how "adjust balance" is implemented. A progress stream delivers "follow an order"; the order and its status are the resource and its property.
 
 ### Relationship
 
@@ -145,8 +126,7 @@ Examples:
 - Creating, editing, and deleting an invitation link are capabilities. Opening or copying the link are interactions with its representations.
 - Participating in a live session may be a capability. Opening the invitation, deciding to begin, submitting a response, and finishing may all be interactions inside it; they should not become separate capabilities just because they happen in sequence. At a more detailed level, starting and finishing may become independent capabilities when consumers do them independently; reconnecting stays part of participating.
 - Selecting an empty document and selecting a populated document can be the same interaction with different resource state, not two capabilities.
-- Checking whether a coupon is valid is a step of paying. Checking seat availability is a traveler's goal in its own right.
-- Retrying or recovering an uncertain start is part of starting.
+- Checking whether a coupon is valid is a step of paying, and retrying an uncertain start is part of starting. Checking seat availability is a traveler's goal in its own right.
 - A nightly job that builds a report is not a capability. Reading the report, or subscribing to it, is.
 
 ### Area
