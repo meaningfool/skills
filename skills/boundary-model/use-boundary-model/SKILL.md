@@ -12,7 +12,7 @@ description: Describe a system as its consumers see it — who uses it, for what
 - **Provider**: the component exposing resources and capabilities across a boundary, as the consumer perceives it.
 - **Resource**: something with a state that the consumer cares about in their domain.
 - **Relationship**: a meaningful link between resources.
-- **Capability**: something the consumer can do with the provider, through one or more interfaces, to get a result.
+- **Capability**: something the consumer can do with the provider's resources, through one or more interfaces, to get a result.
 - **Area**: a group of a boundary's capabilities that serve one purpose for the consumer, either core or supporting.
 - **Interface**: the concrete channel through which the consumer observes resources or exercises capabilities.
 - **Resource property**: a consumer-visible attribute, status, timestamp, flag, count, error, or structured detail on a resource.
@@ -44,21 +44,29 @@ Resources of Store: Product · Order · Loyalty balance
 
 Shopper <-> Store                                              Level 1
   Interfaces: web shop · mobile app
-  Shopping (core): Browse products · Place order · Review past orders
-  Account (supporting): Sign in · See loyalty balance [mobile app]
+  Shopping (core)
+    Browse products: observes Product
+    Place order: produces Order · mutates Loyalty balance
+    Review past orders: observes Order
+  Loyalty (supporting)
+    See loyalty balance: observes Loyalty balance [mobile app]
 
   Inside Store                                                 Level 2
-    Storefront: shopping and accounts; serves Shopper › Shopping, Account
+    Storefront: shopping and loyalty; serves Shopper › Shopping, Loyalty
     Payments: charging orders; serves Shopper › Shopping
     Resources of Payments: Charge
+    Resources of Card network: Card authorization
 
     Storefront <-> Payments
       Interfaces: service-to-service API
-      Charging (core): Charge order · Refund order
+      Charging (core)
+        Charge order: produces Charge
+        Refund order: mutates Charge
 
     Payments <-> Card network
       Interfaces: card network API
-      Authorization (core): Authorize card payment
+      Authorization (core)
+        Authorize card payment: produces Card authorization
 
     Inside Payments                                            Level 3
       Charge service: runs charges; serves Storefront › Charging
@@ -66,10 +74,12 @@ Shopper <-> Store                                              Level 1
 
       Charge service <-> Fraud check
         Interfaces: service-to-service API
-        Scoring (core): Score payment
+        Scoring (core)
+          Score payment: observes Charge
 ```
 
 - List each resource once per provider, under one name, and reference it from every boundary that uses it. Note where a consumer sees it differently.
+- Under each area, give every capability the resources it works on, each with its mode (see Output). One capability can work on several resources, and one resource can serve several capabilities.
 - Put an interface in brackets after a capability that only that interface offers.
 - Under `Inside <Provider>`, list its components with their responsibility and the areas of the level above they serve, then its boundaries. Keep names identical across levels.
 
@@ -115,7 +125,7 @@ Examples:
 
 ### Capability and interaction
 
-- A capability works on at least one resource, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not part of this boundary.
+- A capability works on at least one resource, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not a capability: check the look-alikes below.
 - Every capability gives the consumer an output. If you cannot name it, you are probably looking at a step or an interaction.
 - Name a capability with a verb: "Change order status", not "Manage order lifecycle".
 - Infer capabilities from interaction stories. "The employee submits a time-off request through the HR portal" gives the capability Request time off, on the resource Time-off request, through the HR portal interface.
@@ -133,6 +143,7 @@ Examples:
 ### Area
 
 - Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, credits, or settings, in supporting areas. In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas.
+- Name an area after what the consumer comes to do, in their own words: Shopping, not Catalog and order management.
 
 ### Interface
 
