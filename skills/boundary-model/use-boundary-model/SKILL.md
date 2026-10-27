@@ -7,9 +7,8 @@ description: Describe a system as its consumers see it — who uses it, for what
 
 ## Concepts
 
-- **Goal**: what a consumer wants to achieve by using the provider, in the consumer's own terms.
 - **Boundary**: the line across which a provider exposes resources and capabilities to a consumer. There is one boundary per consumer–provider pair, whatever the number of interfaces.
-- **Consumer**: the role that uses the provider to get something done, defined by its goals. At Level 1 the consumer is external: a person or another system.
+- **Consumer**: the role that uses the provider to get something done. At Level 1 the consumer is external: a person or another system.
 - **Provider**: the component exposing resources and capabilities across a boundary, as the consumer perceives it.
 - **Component**: a system or a part of a system. Both sides of a boundary are components, except the external consumer at Level 1. A component can contain lower-level components.
 - **Resource**: something with a state that the consumer cares about in their domain.
@@ -28,7 +27,6 @@ Related concepts:
 
 ## General guidelines
 
-- Take the consumer's perspective at every level: describe what the consumer deals with, not how it is delivered.
 - Give everything a consumer can see or do a place in a boundary, without turning behind-the-scenes behavior into extra boundaries or capabilities.
 - Include every tool or app someone uses to get something done with the system, including internal ones such as a testing tool or a sample integration. Leave out machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
 - Several models are usually possible: prefer the simplest.
@@ -58,34 +56,23 @@ At Level 2 and below, start with `Components of <Provider>: <Component> — <res
 
 ## Guidelines per concept
 
-### Goal
-
-- State a goal as an outcome in the consumer's domain, not as a feature, a screen, or a step.
-- A goal is reached through one or more capabilities, usually in the core area.
-
-Examples:
-
-- "Get paid for an order" is a merchant's goal. "Use the checkout page" names an interface, and "submit card details" is an interaction.
-
 ### Boundary
 
 - A boundary is about observable behavior: it does not include internal state the consumer cannot see or does not care about.
 - A boundary points one way: from the consumer, who wants something, to the provider, who delivers it. Everything exchanged to deliver it belongs to that boundary, whichever side sends it.
   - Do: put a callback, webhook, or push that delivers a result inside the boundary whose capability it completes.
   - Don't: create a second boundary in the opposite direction because the provider calls the consumer back.
-- List the boundary's interfaces once. When not every interface offers a capability, tag the capability with the interfaces that do.
 
 Examples:
 
-- A web UI and a mobile app for the same warehouse operator are two interfaces of one boundary. A capability only one of them offers is tagged with it.
-- A local admin UI may expose fixture reset, seeded data, and debug-only modules that production never exposes. Tag those capabilities with that interface. If they serve a different goal, such as a developer resetting test data, they belong to that consumer's boundary.
+- A web UI and a mobile app for the same warehouse operator are two interfaces of one boundary. A capability that only one of them offers names that interface, as in the notation.
 - A product user-facing web app and an internal operator CLI are different boundaries because their consumers differ, even if both ultimately call the same backend functions.
 - A payment provider's webhook telling the merchant a payment settled completes the merchant's "take a payment" capability. It is not a separate boundary from the provider to the merchant.
 
 ### Consumer
 
 - Model a role more than a specific person, so one person can hold many roles.
-- Merge role names that share goals and capabilities, since documents often use several names for one role. Split only where goals or capabilities diverge.
+- Merge role names that share goals (what they want to achieve) and capabilities, since documents often use several names for one role. Split only where goals or capabilities diverge.
 
 Examples:
 
