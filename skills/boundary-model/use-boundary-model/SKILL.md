@@ -1,69 +1,50 @@
 ---
 name: use-boundary-model
-description: Model a system from the outside, as its consumers see it — who uses it, for which goals, through which interfaces, on which resources — while keeping these contracts apart from how they are implemented. Use when defining, shaping, extracting or reviewing boundaries, or when deciding whether something is a consumer, provider, interface, resource, capability, area or implementation detail.
+description: Describe a system as its consumers see it — who uses it, for what, through which interfaces — kept apart from how it is built. Use when defining, shaping, extracting or reviewing boundaries.
 ---
 
 # Use Boundary Model
 
-Use this as a lightweight model pass. When a call is close, read the worked examples in [boundary-model.md](./references/boundary-model.md).
-
-A boundary is the contract between a consumer and a provider: the resources the consumer cares about and what it can do with them, through one or more interfaces. How the provider delivers that contract is implementation.
-
 ## Concepts
 
-- **Consumer**: a role defined by its goals — a person, team, agent or system that uses a provider to achieve something. One person can hold several roles. Merge role names that share goals and capabilities; split only where goals or capabilities diverge.
-- **Provider**: what the consumer perceives it is dealing with, usually the product or system as a whole. Its apps, servers, background services and the third-party services it relies on are inside it. Name another provider only when the consumer knowingly deals with it in its own right.
-- **Boundary**: one consumer–provider pair, written `Consumer <-> Provider`. It holds the capabilities the consumer uses, grouped into areas, and the interfaces that offer them.
-- **Interface**: a channel through which the consumer reaches the provider: a web or mobile app, CLI, API, webhook, scheduled job or another control surface. A boundary can have several. A screen, endpoint or command inside a channel is not an interface; neither is code (a module, table or function) unless the consumer invokes it directly.
-- **Resource**: something with state that the consumer cares about in the domain. Define each resource once per provider, under one name, and reference it from every boundary that uses it. Note where a consumer sees it differently.
-- **Resource property**: a consumer-visible attribute of a resource, such as a status, date, count, flag or error.
-- **Relationship**: a link between resources, stating its nature or cardinality.
-- **Capability**: something the consumer sets out to do with the provider that produces an output: a resource or property created or changed, a representation shown, a notification sent, or an external effect. It works in one or more modes: **mutate** resources, **observe** their state, **produce** an output computed from them, or **react** when they meet a condition.
-- **Area**: a group of capabilities within a boundary that serve one purpose for the consumer. The **core** area holds what the consumer comes for. **Supporting** areas hold what they would skip if they could, such as account and access, credits or settings.
+- **Boundary**: the line across which a provider exposes resources and capabilities to a consumer. There is one boundary per consumer–provider pair, whatever the number of interfaces.
+- **Consumer**: the role, actor, or component for whom a capability is available.
+- **Provider**: the component exposing resources and capabilities across a boundary, as the consumer perceives it.
+- **Component**: a system or a part of a system. Both sides of a boundary are components, except a consumer who is a person. A component can contain lower-level components.
+- **Resource**: a consumer-recognized concept or object of concern that represents observable provider state; not a REST/API/database object and not necessarily persisted.
+- **Relationship**: a meaningful link between resources in observable state.
+- **Capability**: a named ability the provider makes available to the consumer through one or more interfaces: something the consumer sets out to do.
+- **Area**: a group of a boundary's capabilities that serve one purpose for the consumer, either core or supporting.
+- **Interface**: the concrete access surface where the consumer intentionally observes resources or exercises capabilities, such as a product UI, admin UI, CLI command, public or partner API, or webhook endpoint.
+- **Resource property**: a consumer-visible attribute, status, timestamp, flag, count, error, or structured detail on a resource.
 
 Related concepts:
 
-- **Interaction**: one concrete occurrence of a capability through an interface. Stories of interactions reveal the model; they are not capabilities.
-- **Representation**: a consumer-visible form of a resource or output, such as a QR code, chart or PDF. It becomes a resource when it gains identity, lifecycle or capabilities of its own.
-- **Implementation choice**: a runtime, framework, deployment unit, process, database or hosting arrangement. It never creates a boundary by itself. Replace its name with the responsibility it holds, and record it as a constraint when it affects feasibility, sequencing or risk.
+- **Interaction**: a concrete story of a capability happening through a specific interface.
+- **Output**: what a capability or interaction gives, changes, reveals, sends, produces, or causes from the consumer's perspective.
+- **Representation**: a consumer-visible form of a resource, property, or output in an interface.
+- **Implementation choice**: a current or proposed runtime, framework, deployment unit, process, database, or hosting arrangement used to implement a provider or responsibility. It does not create a boundary by itself.
 
-## Tests
-
-Keep a **resource** only when it has state of its own and the consumer cares about it for its own sake. These usually fail:
-
-- a credential or access artifact used only to reach something else (it is a resource only in the supporting area where the consumer manages it);
-- a setting or limit (a property or a constraint);
-- the record a capability leaves behind (the resource is what the capability changed);
-- a stream or exchange with no state of its own (its state belongs to a resource property).
-
-Keep a **capability** only when the consumer intends it as a goal and it produces an output for them. These usually fail:
-
-- something the provider does to the consumer, such as enforcing a limit;
-- a check or precondition of another capability;
-- a step, retry or continuation inside another capability;
-- an automated process (what a consumer does with its output can be a capability).
-
-An observe capability is an ordinary capability; its area shows how much it matters.
-
-## Rules
+## General guidelines
 
 - Take the consumer's perspective at every level: describe what the consumer deals with, not how it is delivered.
-- Read direction conceptually. A boundary runs from consumer to provider. A call back from the provider (a callback, webhook or push) that delivers the output of the consumer's capability belongs to that same boundary.
-- Count every surface someone uses to reach a goal, including internal tools and reference consumers. A mechanism nobody uses as a goal — health checks, housekeeping, routing, deployment plumbing — is not a boundary.
-- Attribute every consumer-observable behavior in scope to a capability. Do not invent boundaries or capabilities for supporting implementation behavior to satisfy this rule.
-- Ground the model in stories of how people actually use the system. Do not assume or invent.
-- Prefer the simplest model. When options of similar complexity cannot be settled from the context, show them with their tradeoffs.
-- Watch for REST, API and database drift: resources are consumer concepts, not endpoints, records or tables.
+- Attribute every consumer-observable behaviour in scope to a boundary. Do not turn supporting implementation behaviour into additional boundaries or capabilities merely to satisfy this rule.
+- Count every surface someone uses to reach a goal, including internal tools and reference consumers. A mechanism nobody uses as a goal, such as a health check, housekeeping job, or routing rule, is not a boundary.
+- Read direction conceptually. A boundary runs from consumer to provider. A callback, webhook, or push that delivers the output of the consumer's capability belongs to that same boundary.
+- In any given situation there are multiple ways to model boundaries. Prefer the simplest one by default.
+- When multiple options of similar complexity cannot be arbitrated solely based on the available context, highlight those options and relative tradeoffs.
+- Ground your modelling in the stories of how these humans use the system. Don't assume or invent.
+- Watch for REST/API/database drift: in this model, resources are consumer-recognized concepts, not necessarily endpoints, records, tables, or persisted objects.
 
-## Levels
+### Levels
 
-- **Level 1** shows each consumer and the provider it perceives. Start here.
-- **Level 2** opens one provider. List its **parts**, each named for its responsibility and the Level 1 areas it serves. Then write the boundaries between parts, then the boundaries between parts and the **outside services** they use. A boundary is internal when both sides are parts of the opened provider, and external otherwise.
-- A part holds its own responsibility, authority or lifecycle. Being separately deployed or stateful does not make something a part.
-- Open a level only when the task asks for it or a design question needs it. Go deeper where a part has sub-parts with contracts of their own. Never open an interface as if it were a provider.
-- Give every boundary the same shape at every level, and keep names identical across levels so a reader can follow an outer area to the part that serves it.
+- Model external boundaries by default. This is Level 1: each consumer and the provider it perceives.
+- Open a provider when the user asks for it or when the current design question cannot be resolved without clarifying responsibility, authority, lifecycle, or an internal contract. Do not map unrelated internal structure.
+- Inside an opened provider, list its components with the outer areas each one serves, then the boundaries between those components, then the boundaries between components and the outside services they use.
+- A boundary is internal when both sides are components of the opened provider, and external otherwise.
+- Open a component further in the same way. Give every boundary the same shape at every level, and keep names identical across levels so a reader can follow an outer area to the component that serves it.
 
-## Notation
+### Notation
 
 ```text
 Resources of <Provider>: <Resource> · <Resource>
@@ -76,4 +57,176 @@ Resources of <Provider>: <Resource> · <Resource>
     <Capability>
 ```
 
-Below Level 1, start with `Parts of <Provider>: <Part> — <responsibility>; serves <Consumer> › <Area>`.
+Inside an opened provider, start with `Components of <Provider>: <Component> — <responsibility>; serves <Consumer> › <Area>`.
+
+## Guidelines per concept
+
+### Boundary
+
+- A boundary is about observable behavior: it does not include internal state the consumer cannot see or does not care about.
+- List the boundary's interfaces once. When not every interface offers a capability, tag the capability with the interfaces that do.
+
+Examples:
+
+- A web UI and a mobile app for the same warehouse operator are two interfaces of one boundary. A capability only one of them offers is tagged with it.
+- A local admin UI may expose fixture reset, seeded data, and debug-only modules that production never exposes. Tag those capabilities with that interface. If they serve a different goal, such as a developer resetting test data, they belong to that consumer's boundary.
+- A product user-facing web app and an internal operator CLI are different boundaries because their consumers differ, even if both ultimately call the same backend functions.
+- A payment provider's webhook telling the merchant a payment settled completes the merchant's "take a payment" capability. It is not a separate boundary from the provider to the merchant.
+
+### Consumer
+
+- Model a role more than a specific person, so one person can hold many roles.
+- Merge role names that share goals and capabilities, since documents often use several names for one role. Split only where goals or capabilities diverge.
+
+Examples:
+
+- A requester and an approver may be the same employee, but they may be modeled as different consumers or as a single consumer with a permission attribute.
+- Free and paid users may stay one consumer with a plan attribute until their goals, capabilities, or resource model diverge enough to create different boundary stories.
+- "Customer", "account owner", and "key holder" in different documents are one role when their goals and capabilities are the same.
+
+### Provider
+
+- Default to the product or system being designed unless another provider is clearly visible to the consumer. Its apps, servers, background services, and the third-party services it relies on are inside it.
+- Do not invent providers for internal components unless an opened level is in scope under the Levels guidelines.
+
+Examples:
+
+- A payment processor is a provider for a merchant. A fraud-scoring module inside it is not a provider to the merchant unless fraud review is exposed, but it may be a provider to internal components or to a fraud analyst who directly works with it.
+- A feature-flag service is not a provider to end users when it only selects variants behind the scenes. It is a provider to release managers if they configure flags, inspect rollout state, or trigger rollbacks.
+- A product that uses a hosted identity service for sign-in stays the provider of sign-in, unless its users knowingly go to the identity service's own pages and treat it as a separate service.
+
+### Component
+
+- A component holds its own responsibility, authority, or lifecycle. Being separately deployed, stateful, or named in the architecture does not make something a component.
+- Name a component for its stable responsibility, not its technology.
+- A client that only presents or relays an interface is evidence for that interface, not a component.
+
+Examples:
+
+- Opening an online store shows a storefront component (serves Shopper › Browsing and Ordering), a payments component (serves Shopper › Ordering), and an inventory component. The storefront asks payments to charge an order; the card network is an outside service of the payments component.
+- A command-line client that only forwards requests to the product's API is evidence for the CLI interface, not a component.
+
+### Resource
+
+- The consumer would plausibly refer to it as an object of concern.
+- Removing it would make the boundary lose important meaning.
+- Ask whether it is truly a resource in itself, a property of another resource, a representation, or internal/debug state.
+- Define each resource once per provider, under one name, and reference it from every boundary that uses it. Note where a consumer sees it differently.
+- These usually fail: a credential used only to reach something else, which is a resource only in the area where the consumer manages it; a setting or limit; the record a capability leaves behind; a stream or exchange with no state of its own.
+
+Examples:
+
+- An invitation link may be a resource if the consumer can disable, regenerate, expire, or inspect it. The copied URL and QR code are representations of that link.
+- A bank statement is a resource when consumers can select, filter, and manage it. The PDF export of a bank statement is only a representation of that resource.
+- An API key is a resource in the account and access area, where the customer creates and revokes it. In the API itself it only authenticates calls, so it is not one of the API's resources.
+- A rate limit is a constraint of the API, not a resource.
+- A balance changes through recorded adjustments. The balance is the resource; each adjustment record is how "adjust balance" is implemented.
+- A live progress stream delivers "follow an order". The order and its status are the resource and its property; the stream is not a resource.
+
+### Relationship
+
+- Document cardinality.
+- Document the nature of the relationship in plain language.
+
+Examples:
+
+- A catalog contains many products. A product is part of at least one catalog.
+- A webhook subscription receives updates about payments received by the merchant.
+
+### Capability
+
+- A capability interacts with resources in at least one mode:
+  - Mutates: modifies one or multiple resources.
+  - Observes: exposes one or multiple resources' state, usually through a representation.
+  - Ingests: produces an output that depends on one or more resources as input.
+  - Triggers: reacts when one or multiple resources come to meet some condition.
+- If a capability does not interact with at least one resource, either the resources are under-described or the capability is not really part of this boundary.
+- Ask what output the capability creates: a resource, property change, representation, notification, or side effect.
+- Do not confuse a capability with an interaction, one click, one endpoint, one verification step, or one implementation task.
+- Frame it as something the consumer intends, not something the provider does. These usually fail: something the provider does to the consumer, such as enforcing a limit; a check or precondition of another capability; a step, retry, or continuation inside another capability; an automated process, although what a consumer does with its output can be a capability.
+- An Observes capability is an ordinary capability; its area shows how much it matters.
+
+Examples:
+
+- Creating, editing, and deleting an invitation link are capabilities. Opening or copying the link are interactions with its representations.
+- Participating in a live session may be a capability. At a more detailed level, starting and finishing may become independent capabilities when consumers do them independently; reconnecting stays part of participating.
+- Checking whether a coupon is valid is a step of paying. Checking seat availability is a traveler's goal in its own right.
+- Retrying or recovering an uncertain start is part of starting.
+- A nightly job that builds a report is not a capability. Reading the report, or subscribing to it, is.
+
+### Area
+
+- Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, credits, or settings, in supporting areas.
+
+Examples:
+
+- In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas. Reviewing past orders is a core Observes capability; seeing the loyalty balance is a supporting one.
+
+### Interface
+
+- It is clearly identifiable by its user (the consumer).
+- It is a channel or product surface where interactions happen, not every screen or widget inside that channel.
+- It can be external or internal: product UI, admin UI, operator CLI, agent script, public API, partner API, webhook endpoint, service-to-service API, scheduled-job runner, or another control-plane surface.
+- It is not merely implementation plumbing. A database table, repository adapter, backend module, or server function is not an interface unless the consumer directly invokes that thing as the access surface.
+- If the only current access is through a framework developer tool such as a console, REPL, or framework CLI command, label it a provisional developer control-plane interface and note that no designed interface exists yet.
+- Never open an interface as if it were a provider.
+
+Examples:
+
+- Admin web UI, native mobile app, partner API, and admin CLI can be interfaces. A dashboard, chart, table, modal, or form is usually a view or representation inside an interface.
+- A partner API may be an interface; one endpoint is usually an interaction surface, not a separate interface.
+- A framework mutation or backend job is usually implementation behind an interface. A framework CLI command that invokes it can be a provisional developer control-plane interface when the operator directly uses that command to trigger the capability.
+- A TypeScript repository adapter is not an interface by itself. It may support a future interface such as an agent script, admin UI, or operator CLI.
+
+### Resource property
+
+- It describes a resource without becoming an object of concern on its own.
+- Keep statuses, flags, counts, timestamps, and errors as properties unless they become independently actionable.
+
+Examples:
+
+- Payment status, statement date, retry count, and transcript length are usually properties.
+- A receipt number may be a property until consumers search, dispute, reconcile, or manage receipts independently; then Receipt may be a resource.
+
+### Interaction
+
+- Consumer/provider interactions are identified through interaction stories, for example: "The employee submits a time-off request through an HR portal."
+- Identifying interactions and their specifics allows inferring the model's core concepts because they reveal the consumers, providers, interfaces, resources, and capabilities expected.
+
+Examples:
+
+- Open invitation, decide to begin, submit a response, and finish a session may all be interactions inside Participate in session. They should not become separate capabilities just because they happen in sequence.
+- Selecting an empty document and selecting a populated document can be the same interaction with different resource state, not two capabilities.
+
+### Output
+
+- It can be a new or changed resource instance, a changed resource property, a representation, a notification, or an external side effect.
+- An Observes capability usually outputs a representation of resource state.
+- An Ingests capability may output a new resource, a representation, or a side effect.
+- Do not model an output as a resource unless the consumer can identify, manage, relate, or act on it independently.
+
+Examples:
+
+- Export monthly statement may output a PDF representation. If consumers manage statements across periods, Statement is likely the resource and the PDF is one representation of it.
+- An alerting capability sends notifications. Alerts are likely a resource that can be managed. Notifications are probably just an output, unless they can be managed system-wide as their own object of concern.
+- Show revenue trend outputs a chart; the chart is a representation, not the interface, not a resource.
+
+### Representation
+
+- Resources are exposed to consumers through representations; not directly.
+- A representation can become a resource when it gains consumer-visible identity, lifecycle, relationships, or capabilities.
+
+Examples:
+
+- A QR code, copied URL, and button label can all represent the same access link. If consumers rotate, expire, or audit the access link, model the link/token as the resource, not each representation.
+- A chart and table can represent the same report data. If consumers name, share, schedule, or permission a saved report, Saved Report may be the resource.
+
+### Implementation choice
+
+- Its existence, isolation, or statefulness does not create a boundary or a component.
+- Replace technology names with stable responsibilities. If another technology could preserve the contract and ownership, keep the choice outside the boundary model.
+- Record choices that affect feasibility, sequencing, or risk as architecture constraints.
+
+Examples:
+
+- A stateful actor or a serverless function may implement a run lifecycle controller. Model the responsibility as the component unless its platform-specific contract is in scope. A process that only hosts request handling is not automatically a provider.
