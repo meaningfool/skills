@@ -8,9 +8,9 @@ description: Describe a system as its consumers see it — who uses it, for what
 ## Concepts
 
 - **Boundary**: the line across which a provider exposes resources and capabilities to a consumer. There is one boundary per consumer–provider pair, whatever the number of interfaces.
-- **Consumer**: the role, actor, or component for whom a capability is available.
+- **Consumer**: the role, actor, or component for whom a capability is available. At Level 1 the consumer is external: a person or another system.
 - **Provider**: the component exposing resources and capabilities across a boundary, as the consumer perceives it.
-- **Component**: a system or a part of a system. Both sides of a boundary are components, except a consumer who is a person. A component can contain lower-level components.
+- **Component**: a system or a part of a system. Both sides of a boundary are components, except the external consumer at Level 1. A component can contain lower-level components.
 - **Resource**: a consumer-recognized concept or object of concern that represents observable provider state; not a REST/API/database object and not necessarily persisted.
 - **Relationship**: a meaningful link between resources in observable state.
 - **Capability**: a named ability the provider makes available to the consumer through one or more interfaces: something the consumer sets out to do.
@@ -29,20 +29,18 @@ Related concepts:
 
 - Take the consumer's perspective at every level: describe what the consumer deals with, not how it is delivered.
 - Attribute every consumer-observable behaviour in scope to a boundary. Do not turn supporting implementation behaviour into additional boundaries or capabilities merely to satisfy this rule.
-- Count every surface someone uses to reach a goal, including internal tools and reference consumers. A mechanism nobody uses as a goal, such as a health check, housekeeping job, or routing rule, is not a boundary.
-- Read direction conceptually. A boundary runs from consumer to provider. A callback, webhook, or push that delivers the output of the consumer's capability belongs to that same boundary.
+- Include every tool or app someone uses to get something done with the system, including internal ones such as a testing tool or a sample integration. Leave out machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
 - In any given situation there are multiple ways to model boundaries. Prefer the simplest one by default.
 - When multiple options of similar complexity cannot be arbitrated solely based on the available context, highlight those options and relative tradeoffs.
-- Ground your modelling in the stories of how these humans use the system. Don't assume or invent.
+- Ground your modelling in the stories of how external consumers use the system. Don't assume or invent.
 - Watch for REST/API/database drift: in this model, resources are consumer-recognized concepts, not necessarily endpoints, records, tables, or persisted objects.
 
 ### Levels
 
-- Model external boundaries by default. This is Level 1: each consumer and the provider it perceives.
-- Open a provider when the user asks for it or when the current design question cannot be resolved without clarifying responsibility, authority, lifecycle, or an internal contract. Do not map unrelated internal structure.
-- Inside an opened provider, list its components with the outer areas each one serves, then the boundaries between those components, then the boundaries between components and the outside services they use.
-- A boundary is internal when both sides are components of the opened provider, and external otherwise.
-- Open a component further in the same way. Give every boundary the same shape at every level, and keep names identical across levels so a reader can follow an outer area to the component that serves it.
+- Model external boundaries by default. This is Level 1: the external consumers and the system they use. Level 1 boundaries are external.
+- Level 2 opens the system: name the components it is made of and, for each one, which Level 1 areas it delivers. Then describe the boundaries between those components, and between a component and an outside service it uses.
+- Every boundary below Level 1 is internal, including those with outside services. The deeper the level, the deeper the layer of the system's architecture it describes.
+- Go one level deeper by opening a component the same way. Write every boundary the same way at every level, and use the same names at every level, so a reader can trace a Level 1 area down to the components that deliver it.
 
 ### Notation
 
@@ -57,13 +55,16 @@ Resources of <Provider>: <Resource> · <Resource>
     <Capability>
 ```
 
-Inside an opened provider, start with `Components of <Provider>: <Component> — <responsibility>; serves <Consumer> › <Area>`.
+At Level 2 and below, start with `Components of <Provider>: <Component> — <responsibility>; serves <Consumer> › <Area>`.
 
 ## Guidelines per concept
 
 ### Boundary
 
 - A boundary is about observable behavior: it does not include internal state the consumer cannot see or does not care about.
+- A boundary points one way: from the consumer, who wants something, to the provider, who delivers it. Everything exchanged to deliver it belongs to that boundary, whichever side sends it.
+  - Do: put a callback, webhook, or push that delivers a result inside the boundary whose capability it completes.
+  - Don't: create a second boundary in the opposite direction because the provider calls the consumer back.
 - List the boundary's interfaces once. When not every interface offers a capability, tag the capability with the interfaces that do.
 
 Examples:
