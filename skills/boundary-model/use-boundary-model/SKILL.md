@@ -37,7 +37,7 @@ Related concepts:
 ### Levels and notation
 
 - Model Level 1 by default: the external consumers and the system they use. Level 1 boundaries are external; every boundary below it is internal, outside services included.
-- A provider is also a consumer one level down: to deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level. Open as many levels as the question needs.
+- A provider is also a consumer one level down: to deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level.
 
 ```text
 Resources of Store: Product · Order · Loyalty balance
@@ -101,17 +101,21 @@ Examples:
 
 - Model a consumer as a role more than a specific person, so one person can hold many roles. Merge role names that share goals (what they want to achieve) and capabilities, since documents often use several names for one role; split only where they diverge.
 - Name as provider what the consumer believes it is using. The apps, servers, background services, and third-party services that deliver it stay inside it until a lower level opens it.
+- Treat what consumers run on the provider for themselves, such as their own scripts or integrations, as the same consumer using another interface. A separate consumer needs goals of its own.
+- Count every surface consumers see as part of the same product, such as its public pages or help center, as part of that provider. Make a surface its own provider only when consumers see it as a separate product.
 
 Examples:
 
 - A requester and an approver may be the same employee, modeled as different consumers or as one consumer with a permission attribute. Free and paid users stay one consumer until their goals, capabilities, or resources diverge.
 - A fraud-scoring module inside a payment processor is not a provider to the merchant unless fraud review is exposed, but it may be one to a fraud analyst who works with it directly. A feature-flag service is a provider to release managers who configure flags, not to end users.
 - A product that uses a hosted identity service for sign-in stays the provider of sign-in, unless its users knowingly go to that service's own pages.
+- A customer's nightly script that exports their orders through the public API acts for the customer: the API is a second interface of the customer's boundary. A partner app that serves the partner's own users through that API is a separate consumer.
 
 ### Resource
 
 - Check that it is not really a property of another resource, a representation, internal or debug state, a credential used only to get access to something else, a setting or limit, the record a capability leaves behind, or a stream with no state of its own.
 - Watch for REST/API/database drift: in this model, resources are consumer-recognized concepts, not necessarily endpoints, records, tables, or persisted objects.
+- Keep the parts of a resource inside it, such as an order's lines or a document's revisions, unless the consumer finds, opens, or acts on them separately; then they form a resource of their own.
 
 Examples:
 
