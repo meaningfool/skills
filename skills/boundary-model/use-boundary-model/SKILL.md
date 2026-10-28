@@ -102,7 +102,7 @@ Examples:
 - Model a consumer as a role more than a specific person, so one person can hold many roles. Merge role names that share goals (what they want to achieve) and capabilities, since documents often use several names for one role; split only where they diverge.
 - Name as provider what the consumer believes it is using. The apps, servers, background services, and third-party services that deliver it stay inside it until a lower level opens it.
 - Treat what consumers run on the provider for themselves, such as their own scripts or integrations, as the same consumer using another interface. A separate consumer needs goals of its own.
-- Count every surface consumers see as part of the same product, such as its public pages or help center, as part of that provider. Make a surface its own provider only when consumers see it as a separate product.
+- Count every surface consumers see as part of the same product, such as its public pages or help center, as part of that provider. Make a surface its own provider only when consumers see it as a separate product: a tool with its own deployment, its own data, and consumers of its own usually is one.
 
 Examples:
 
