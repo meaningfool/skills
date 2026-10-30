@@ -18,7 +18,7 @@ When the change is described as boundary changes, refine each one with the `boun
 
 1. Start from the `Details` list of a shape, a selected slice, a single change, or the issue being started, and restate the change to be refined. If it is not clear, ask the user to clarify it, or to shape it first with the `shape-boundaries` skill.
 2. List the open details. Settle from the codebase, existing behavior, and earlier decisions what they answer, and leave to implementation what would change no expected behavior or design decision. If nothing is left, say so and stop.
-3. Ask the questions with a real tradeoff one at a time, the highest-leverage first.
+3. Ask the questions with a real tradeoff one at a time, the highest-leverage first. State the tradeoff in plain words, what is gained and what is given up, and your recommendation.
 4. Group the remaining questions, in one or more groups, with your recommended answer to each.
 5. Stop when no open question would change an expected behavior or a design decision.
 
