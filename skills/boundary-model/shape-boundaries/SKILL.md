@@ -17,7 +17,7 @@ Before asking a question, state how different plausible answers could add, remov
 
 Prefer questions that do not depend on unresolved shaping questions.
 
-When several questions qualify, ask the one with the greatest expected impact on the boundary changes. Do not invent an impact to justify asking a question.
+Ask the highest-leverage question first: the one whose answer could add, remove, or redefine the most boundary changes.
 
 ## Know when to stop
 
