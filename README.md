@@ -15,7 +15,7 @@ mandatory linear workflow:
 - `refine` settles the details of a change, with or without boundary changes.
 - `slice` compares ways to divide a change into work, along its boundary
   changes when it has them; it also works without them.
-- `slices-to-issues` publishes refined slices as GitHub issues.
+- `to-issues` publishes slices or changes as GitHub issues, each with its proof of done.
 
 ## Standalone skills
 

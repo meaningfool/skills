@@ -8,7 +8,7 @@ Use the skill that matches the current decision:
 | Establish the perimeter of a change | `shape-boundaries` |
 | Settle the details of a change, with or without boundary changes | `refine` |
 | Compare viable slicing strategies, with or without boundary changes | `slice` |
-| Publish refined slices as GitHub issues | `slices-to-issues` |
+| Publish slices or changes as GitHub issues | `to-issues` |
 
 These skills are related but do not form a mandatory sequence. Shaping usually
 precedes slicing, and issue creation expects refined source material. Use the
