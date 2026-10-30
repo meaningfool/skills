@@ -1,5 +1,5 @@
 ---
-name: refine-boundary
+name: refine
 description: Refine a selected boundary change. Use when boundaries have already been shaped but need clearer decisions or specification before creating issues.
 ---
 
