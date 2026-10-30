@@ -3,13 +3,13 @@ name: refine-boundary
 description: Refine a selected boundary change. Use when boundaries have already been shaped but need clearer decisions or specification before creating issues.
 ---
 
-# Refine Slices
+# Refine Boundary
 
 ## What to do
 
-The goal is to refine a boundary change to make it ready for implementation. Use the `boundary model` as defined in the `use-boundary-model` skill.
+Refine the boundary changes of a selected slice, or a single boundary change, until they are ready for implementation. Use the `boundary model` as defined in the `use-boundary-model` skill.
 
-Interview me until we reach a shared understanding on all the implementation details of the boundary change, and agree it is ready for implementation.
+Interview the user until each boundary change in scope has its expected behavior and design decisions settled. Before asking a question, state how plausible answers would change an expected behavior or a design decision; if none would, decide it yourself from the codebase and existing decisions, or leave it to implementation. Stop when no open question would change either.
 
 ## Guidelines
 
@@ -22,6 +22,5 @@ Interview me until we reach a shared understanding on all the implementation det
 
 ## Record Decisions
 
-- Use the planning document designated by the user.
-- If no planning document is designated, ask if a file should record the refinement decisions.
+- Use the planning document designated by the user. If none is designated, ask which file should record the decisions, following the target repository's documentation conventions.
 - Record design decisions once all questions have been answered by the user.
