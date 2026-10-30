@@ -1,5 +1,5 @@
 ---
-name: slices-to-issues
+name: to-issues
 description: Create GitHub issues from refined slice planning material. Use when refined slices are ready to publish and the user wants optional parent grouping, expected behavior, design decisions, critical paths, and checks.
 ---
 

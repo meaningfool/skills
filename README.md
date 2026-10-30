@@ -14,7 +14,7 @@ mandatory linear workflow:
 - `shape-boundaries` explores the perimeter of an expected change.
 - `refine-boundary` resolves implementation decisions for a selected change.
 - `slice-with-boundaries` compares ways to divide boundary changes into work.
-- `slices-to-issues` publishes refined slices as GitHub issues.
+- `to-issues` publishes slices or changes as GitHub issues, each with its proof of done.
 
 ## Standalone skills
 
