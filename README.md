@@ -11,11 +11,17 @@ The skills in `skills/boundary-model/` form a related toolkit rather than a
 mandatory linear workflow:
 
 - `use-boundary-model` defines the model and its vocabulary.
-- `shape-boundaries` explores the perimeter of an expected change.
-- `refine` settles the details of a change, with or without boundary changes.
+- `shape-boundaries` expresses a change as the boundary changes it leads to.
 - `slice` compares ways to divide a change into work, along its boundary
-  changes when it has them; it also works without them.
-- `to-issues` publishes slices or changes as GitHub issues, each with its proof of done.
+  changes when it has them.
+- `refine` settles the details of a change: its expected behavior and design
+  decisions.
+- `to-issues` publishes slices or changes as GitHub issues, each with its proof
+  of done.
+
+`slice`, `refine`, and `to-issues` also work for changes not described with the
+boundary model. See [the category README](skills/boundary-model/README.md) for
+how the skills fit together.
 
 ## Standalone skills
 
