@@ -13,7 +13,8 @@ mandatory linear workflow:
 - `use-boundary-model` defines the model and its vocabulary.
 - `shape-boundaries` explores the perimeter of an expected change.
 - `refine-boundary` resolves implementation decisions for a selected change.
-- `slice-with-boundaries` compares ways to divide boundary changes into work.
+- `slice` compares ways to divide a change into work, along its boundary
+  changes when it has them; it also works without them.
 - `slices-to-issues` publishes refined slices as GitHub issues.
 
 ## Standalone skills
