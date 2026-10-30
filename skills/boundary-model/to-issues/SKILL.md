@@ -114,7 +114,6 @@ Choose the type from `Before Starting` and `Proof of Done`:
 - Use `Expected Behavior` as a contract for consumer-observable outcomes, across the boundary when there is one.
 - Write one observable outcome per bullet as a short, plain statement that constitutes a falsifiable claim.
 - Ask: would this behavior still be true if the UI widget, storage shape, file path, route, or API changed? If yes, write the Expected Behavior at the role/capability level and put the concrete mechanism in Design Decisions.
-- Avoid long clauses joined by `while`, `and`, or multiple exceptions. Each clause must be specific enough that a reader can say what evidence would prove or disprove it.
 
 GOOD:
 
@@ -124,19 +123,13 @@ GOOD:
 
 ## Design Decisions
 
-- Use `Design Decisions` for choices about how the expected behavior must be achieved or constrained.
-- Include implementation choices, scope boundaries, rejected alternatives, dependency decisions, storage shape, command shape, and access model decisions when they matter.
-- Write decisions as committed statements.
-- Do not use this section for tasks.
-- Do not use this section for vague quality goals, undecided preferences, or future work.
-- Do not repeat consumer-observable outcomes here; those belong in `Expected Behavior`.
+- Use `Design Decisions` for committed choices about how the expected behavior must be achieved or constrained, such as implementation choices, scope boundaries, rejected alternatives, dependencies, storage shape, and access model, when they matter.
+- Do not use it for tasks, vague quality goals, undecided preferences, future work, or consumer-observable outcomes.
 
 GOOD:
 
 - `Use the existing payment provider integration; do not add a second provider.`
-- `Keep imported contacts in the current contacts table; do not introduce a staging table.`
 - `Calculate report totals from settled invoices, not ledger entries.`
-- `Expose admin actions through the existing admin CLI; do not add a hidden HTTP endpoint.`
 
 ## Proof of Done
 
@@ -144,14 +137,8 @@ GOOD:
 - Prefer the critical vertical path over exhaustive coverage.
 - List everything the proof needs from outside the repository under `Before Starting`, so it is confirmed before implementation starts.
 
-## Publish And Audit
+## Publish
 
 1. Draft the parent and every child or standalone issue locally before creating anything.
-2. Run the adversarial review against the complete local draft set:
-   - check for contradictions between issues;
-   - check Expected Behavior against Design Decisions;
-   - check committed language, issue size, dependencies, and that each proof of done can be run;
-   - fix every `high` and `medium` finding;
-   - repeat locally until no `high` or `medium` findings remain.
+2. Review the complete draft set once, for contradictions between issues, Expected Behavior against Design Decisions, committed language, issue size, dependencies, and whether each proof of done can be run. Fix what you find.
 3. Create the approved issues according to the target repository's issue-tracking conventions.
-4. Re-fetch the published issues and verify that their content matches the reviewed local drafts.
