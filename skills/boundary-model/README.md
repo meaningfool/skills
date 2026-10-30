@@ -6,7 +6,7 @@ Use the skill that matches the current decision:
 | --- | --- |
 | Define or apply the boundary model | `use-boundary-model` |
 | Establish the perimeter of a change | `shape-boundaries` |
-| Resolve details of a selected boundary change | `refine-boundary` |
+| Settle the details of a change, with or without boundary changes | `refine` |
 | Compare viable slicing strategies, with or without boundary changes | `slice` |
 | Publish refined slices as GitHub issues | `slices-to-issues` |
 
