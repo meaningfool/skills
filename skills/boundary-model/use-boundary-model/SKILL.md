@@ -37,7 +37,7 @@ Related concepts:
 ### Levels and notation
 
 - Model Level 1 by default: the external consumers and the system they use. Level 1 boundaries are external; every boundary below it is internal, outside services included.
-- A provider is also a consumer one level down: to deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level.
+- A provider is also a consumer one level down: to deliver what it promises, it relies on its own components and on outside services. Opening it shows that next level. Levels below Level 1 serve the people who build and change the system: they show the parts each provider relies on and the boundaries between them.
 
 ```text
 Resources of Store: Product · Order · Loyalty balance
@@ -111,6 +111,16 @@ Examples:
 - A product that uses a hosted identity service for sign-in stays the provider of sign-in, unless its users knowingly go to that service's own pages.
 - A customer's nightly script that exports their orders through the public API acts for the customer: the API is a second interface of the customer's boundary. A partner app that serves the partner's own users through that API is a separate consumer.
 
+### Component
+
+- A part of a provider is a component when it keeps state that only it changes, or makes decisions that only it makes, and the other parts reach it only through what it exposes.
+- A client that only presents a provider's capabilities is part of an interface, not a component. Storage, libraries, and adapters to outside services are how a component keeps or reaches things, not components. Parts that share one store and change each other's records form one component.
+- Variants that fulfil the same contract are one component with variants, separate from the part that chooses or uses them.
+
+Example:
+
+- Inside a payment service, the charge processor alone changes a charge's state and the fraud check alone decides a score, so they are two components. The HTTP routes in front of them and the database adapter are not.
+
 ### Resource
 
 - Check that it is not really a property of another resource, a representation, internal or debug state, a credential used only to get access to something else, a setting or limit, the record a capability leaves behind, or a stream with no state of its own.
@@ -134,7 +144,7 @@ Examples:
 - Name a capability with a verb: "Change order status", not "Manage order lifecycle".
 - Infer capabilities from interaction stories. "The employee submits a time-off request through the HR portal" gives the capability Request time off, on the resource Time-off request, through the HR portal interface.
 - Some things look like capabilities but are not:
-  - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and retrying an uncertain start is part of starting. Checking seat availability, by contrast, is a traveler's goal in its own right.
+  - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and retrying an uncertain start is part of starting. Checking seat availability, by contrast, is a traveler's goal in its own right. A check or confirmation whose result only decides whether another capability goes ahead is such a step, even when it reads a resource: checking that a user may administer an account is part of each administration action.
   - What the provider does on its own is not something the consumer does: enforcing a rate limit, or a nightly job that builds a report. Reading the report is a capability.
   - An interaction is one occurrence of a capability in a story, not a capability of its own.
 
@@ -142,7 +152,6 @@ Examples:
 
 - Creating, editing, and deleting an invitation link are capabilities. Opening or copying the link are interactions with its representations.
 - Participating in a live session may be a capability. Opening the invitation, deciding to begin, submitting a response, and finishing may all be interactions inside it; they should not become separate capabilities just because they happen in sequence. At a more detailed level, starting and finishing may become independent capabilities when consumers do them independently; reconnecting stays part of participating.
-- Selecting an empty document and selecting a populated document can be the same interaction with different resource state, not two capabilities.
 
 ### Area
 
@@ -153,7 +162,6 @@ Examples:
 
 - It is clearly identifiable by its user (the consumer).
 - It is a channel or product surface where interactions happen, not every screen or widget inside that channel. A partner API may be an interface; one endpoint is usually an interaction surface, not a separate interface.
-- It can be external or internal: product UI, admin UI, operator CLI, agent script, public API, partner API, webhook endpoint, service-to-service API, scheduled-job runner, or another control-plane surface.
 - It is not merely implementation plumbing. A database table, repository adapter, backend module, or server function is not an interface unless the consumer directly invokes that thing as the access surface.
 - A client that only presents or relays the provider's capabilities, such as a thin CLI, is part of an interface, not a provider.
 
