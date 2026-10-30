@@ -1,18 +1,18 @@
 ---
 name: to-issues
-description: Create GitHub issues from refined slice planning material. Use when refined slices are ready to publish and the user wants optional parent grouping, expected behavior, design decisions, critical paths, and checks.
+description: Create GitHub issues from planning material, each with its proof of done. Use when slices or changes are ready to publish and the user wants optional parent grouping, expected behavior, design decisions, and a proof of done.
 ---
 
-# Slices To Issues
+# To Issues
 
-Turn refined slice planning material into GitHub issues.
+Turn planning material into GitHub issues, one per slice or change, with or without boundary changes.
 
-This skill assumes the source material has already been refined.
+Use material whose expected behavior and design decisions are settled, by refinement or because they already were. Do not settle an open one while drafting: ask the user, or list it under `Before starting` as a decision the issue needs.
 
 ## What to do
 
 1. Identify the target issue tracking repository and its issue-tracking conventions.
-2. Read the designated slice/slices from the conversation or planning document.
+2. Read the designated slices or changes from the conversation or planning document.
 3. Search for duplicate or overlapping open issues.
 4. Propose an issue topology and ask the user before publishing:
    - use an existing parent issue;
@@ -21,8 +21,8 @@ This skill assumes the source material has already been refined.
 
 ## Guidelines
 
-- Do not add work that is not present in the refined material.
-- If the refined topic is still too large, propose multiple issues or recommend another `slice-with-boundaries` pass.
+- Do not add work that is not present in the planning material.
+- If a slice or change is still too large, propose multiple issues or recommend another `slice` pass.
 - Keep parent issues optional. Use them only when they help group related work or hold shared context.
 - Treat parent issues as containers, not operational work. Do not put verification duties on parent issues.
 - Keep each child or standalone issue implementable without rereading the whole planning conversation.
@@ -77,21 +77,23 @@ Template:
 
 [AFK | HITL INPUT | HITL VERIF | HITL INPUT+VERIF]
 
-## Human input before work starts
+## Before Starting
 
-[Exact access, setup, credential name, file, or decision needed. Use None when not needed.]
+Confirm that each item below is available and works before implementing. If one is not, stop and ask rather than implement work that cannot be proven.
+
+- [Access, setup, credential name, tool, device, environment, or decision that the work or its proof needs from outside the repository | None]
 
 ## Expected Behavior
 
-[Short statements describing consumer-observable outcomes across the boundary.]
+[Short statements describing consumer-observable outcomes, across the boundary when there is one.]
 
 ## Design Decisions
 
 [Short statements describing chosen or rejected paths that shape how the expected behavior is implemented.]
 
-## Demo / Critical Path
+## Proof of Done
 
-[Smallest end-to-end scenario or scenarios needed to trust the issue from the outside.]
+[The smallest end-to-end check that shows the work is delivered and working: where it runs, what is done, and what is observed.]
 
 ## Blocked by
 
@@ -100,16 +102,16 @@ Template:
 
 ## Type
 
-Choose the type by asking what the implementation agent needs from outside the repo:
+Choose the type from `Before Starting` and `Proof of Done`:
 
-- `AFK`: the agent can implement and verify without human intervention
-- `HITL INPUT`: the agent needs human input before the work can get started: setup, access, credentials...
-- `HITL VERIF`: the agent can implement, but the final verification requires human intervention (e.g. the agent cannot access the microphone).
-- `HITL INPUT+VERIF`: both pre-work human input and final human verification are required.
+- `AFK`: the agent has everything listed under `Before Starting` and can run the proof itself.
+- `HITL INPUT`: a person must first provide something listed under `Before Starting`: access, setup, a credential, or a decision.
+- `HITL VERIF`: the agent can implement, but a person must run or observe the proof (e.g. the agent cannot access the microphone).
+- `HITL INPUT+VERIF`: both.
 
 ## Expected Behavior
 
-- Use `Expected Behavior` as a contract for consumer-observable outcomes across the boundary.
+- Use `Expected Behavior` as a contract for consumer-observable outcomes, across the boundary when there is one.
 - Write one observable outcome per bullet as a short, plain statement that constitutes a falsifiable claim.
 - Ask: would this behavior still be true if the UI widget, storage shape, file path, route, or API changed? If yes, write the Expected Behavior at the role/capability level and put the concrete mechanism in Design Decisions.
 - Avoid long clauses joined by `while`, `and`, or multiple exceptions. Each clause must be specific enough that a reader can say what evidence would prove or disprove it.
@@ -136,17 +138,11 @@ GOOD:
 - `Calculate report totals from settled invoices, not ledger entries.`
 - `Expose admin actions through the existing admin CLI; do not add a hidden HTTP endpoint.`
 
-## Demo / Critical Path
+## Proof of Done
 
-Critical path verification:
-
-- Identify the smallest end-to-end scenario or scenarios needed to trust the issue from the outside.
-- Describe each scenario from the perspective of the consumer: the starting state, the sequence of actions, and the observations that prove important behavior.
+- Name the smallest end-to-end check that shows the work is delivered and working, from the consumer's side: where it runs, the starting state, what is done, and what is observed.
 - Prefer the critical vertical path over exhaustive coverage.
-
-Internal verification:
-
-- Identify the smallest set of automated verification that cannot be observed by the consumer and/or cannot be observed through the critical path verification.
+- List everything the proof needs from outside the repository under `Before Starting`, so it is confirmed before implementation starts.
 
 ## Publish And Audit
 
@@ -154,7 +150,7 @@ Internal verification:
 2. Run the adversarial review against the complete local draft set:
    - check for contradictions between issues;
    - check Expected Behavior against Design Decisions;
-   - check committed language, issue size, dependencies, and verification scope;
+   - check committed language, issue size, dependencies, and that each proof of done can be run;
    - fix every `high` and `medium` finding;
    - repeat locally until no `high` or `medium` findings remain.
 3. Create the approved issues according to the target repository's issue-tracking conventions.
