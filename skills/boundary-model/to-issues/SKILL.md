@@ -1,13 +1,13 @@
 ---
 name: to-issues
-description: Create GitHub issues from planning material, each with its proof of done. Use when slices or changes are ready to publish and the user wants optional parent grouping, expected behavior, design decisions, and a proof of done.
+description: Create GitHub issues from planning material, each with its proof of done. Use when slices or changes are ready to publish and the user wants optional parent grouping, expected behavior, context and decisions, and a proof of done.
 ---
 
 # To Issues
 
 Turn planning material into GitHub issues, one per slice or change, with or without boundary changes.
 
-Use material whose expected behavior and design decisions are settled, by refinement or because they already were. Do not settle an open one while drafting: ask the user, or list it under `Before starting` as a decision the issue needs.
+Use material whose expected behavior and design decisions are settled, by refinement or because they already were. Do not settle an open one while drafting: ask the user, or list it under `Before Starting` as a decision the issue needs.
 
 ## What to do
 
@@ -25,10 +25,9 @@ Use material whose expected behavior and design decisions are settled, by refine
 - If a slice or change is still too large, propose multiple issues or recommend another `slice` pass.
 - Keep parent issues optional. Use them only when they help group related work or hold shared context.
 - Treat parent issues as containers, not operational work. Do not put verification duties on parent issues.
-- Keep each child or standalone issue implementable without rereading the whole planning conversation.
+- Carry into each issue everything important from the plan, so an agent can implement it without reading the plan.
 - Never put secret values in GitHub issues, comments, docs, or committed files.
 - Use committed language for accepted work: prefer `does`, `does not`, `must`, and `must not`; avoid `should`, `could`, and vague `can` unless describing an optional capability.
-- `Expected Behavior` and `Design Decisions` must not overlap. Statements belong to one or the other.
 - Remove planning-only identifiers such as `Phase 3A` or `Slice A1` from published issue titles and bodies; they have no meaning without the related plan.
 - Compress as much as you can.
 
@@ -87,9 +86,9 @@ Confirm that each item below is available and works before implementing. If one 
 
 [Short statements describing consumer-observable outcomes, across the boundary when there is one.]
 
-## Design Decisions
+## Context and Decisions
 
-[Short statements describing chosen or rejected paths that shape how the expected behavior is implemented.]
+[Everything from the plan the agent needs and would otherwise have to look up: chosen and rejected paths, constraints, and background.]
 
 ## Proof of Done
 
@@ -113,23 +112,13 @@ Choose the type from `Before Starting` and `Proof of Done`:
 
 - Use `Expected Behavior` as a contract for consumer-observable outcomes, across the boundary when there is one.
 - Write one observable outcome per bullet as a short, plain statement that constitutes a falsifiable claim.
-- Ask: would this behavior still be true if the UI widget, storage shape, file path, route, or API changed? If yes, write the Expected Behavior at the role/capability level and put the concrete mechanism in Design Decisions.
+- Ask: would this behavior still be true if the UI widget, storage shape, file path, route, or API changed? If yes, write the Expected Behavior at the role/capability level and put the concrete mechanism in Context and Decisions.
 
 GOOD:
 
 - `Archived projects are not returned by the projects API.`
 - `Password reset links expire after 30 minutes.`
 - `Malformed CSV uploads return a row-level validation report without creating contacts.`
-
-## Design Decisions
-
-- Use `Design Decisions` for committed choices about how the expected behavior must be achieved or constrained, such as implementation choices, scope boundaries, rejected alternatives, dependencies, storage shape, and access model, when they matter.
-- Do not use it for tasks, vague quality goals, undecided preferences, future work, or consumer-observable outcomes.
-
-GOOD:
-
-- `Use the existing payment provider integration; do not add a second provider.`
-- `Calculate report totals from settled invoices, not ledger entries.`
 
 ## Proof of Done
 
@@ -140,5 +129,5 @@ GOOD:
 ## Publish
 
 1. Draft the parent and every child or standalone issue locally before creating anything.
-2. Review the complete draft set once, for contradictions between issues, Expected Behavior against Design Decisions, committed language, issue size, dependencies, and whether each proof of done can be run. Fix what you find.
+2. Review the complete draft set once, for contradictions between issues, Expected Behavior against Context and Decisions, committed language, issue size, dependencies, and whether each proof of done can be run. Fix what you find.
 3. Create the approved issues according to the target repository's issue-tracking conventions.
