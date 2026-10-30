@@ -22,7 +22,7 @@ This skill assumes the source material has already been refined.
 ## Guidelines
 
 - Do not add work that is not present in the refined material.
-- If the refined topic is still too large, propose multiple issues or recommend another `slice-with-boundaries` pass.
+- If the refined topic is still too large, propose multiple issues or recommend another `slice` pass.
 - Keep parent issues optional. Use them only when they help group related work or hold shared context.
 - Treat parent issues as containers, not operational work. Do not put verification duties on parent issues.
 - Keep each child or standalone issue implementable without rereading the whole planning conversation.
