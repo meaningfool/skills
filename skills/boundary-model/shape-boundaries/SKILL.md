@@ -43,6 +43,7 @@ Do not continue with confirmatory or refinement questions after these conditions
 - Start with external boundaries by default.
 - Include internal boundaries or technical choices when they could affect the perimeter or slicing strategies.
 - Use the current conversation and linked documents as the starting point.
+- When a boundary map of the current system exists, start from it: mark each change NEW, MODIFIED, or REMOVED against it, and keep its names.
 - Ask one question at a time and provide a recommended answer.
 - Resolve questions from the codebase or existing decisions instead of asking the user.
 - Label assumptions and ask only when they matter.
@@ -51,15 +52,20 @@ Do not continue with confirmatory or refinement questions after these conditions
 
 ## Output
 
+Before giving the shape, check every capability against `use-boundary-model`: it works on at least one resource and gives its consumer an output of its own. Fold a step into the capability it belongs to, and drop what the provider does on its own.
+
 When asked to output the shape, list the agreed boundary changes:
 
 ```markdown
-**[Consumer <-> Provider]**
-Change: [NEW|MODIFIED|REMOVED] [One-sentence description]
-Interface: [...]
-Resources and capabilities:
+Resources of [Provider]:
 
-- [NEW|MODIFIED] [Resource or capability]: [Definition]
+- [NEW|MODIFIED|REMOVED] **[Resource]**: [one-line definition]
+
+**[Consumer] <-> [Provider]**: [NEW|MODIFIED|REMOVED], [one-sentence description of the change]
+
+- Interfaces: [interface] · [interface], each marked NEW or REMOVED when it changes
+- [Area] (core|supporting)
+  - [NEW|MODIFIED|REMOVED] [Capability]: [mode] **[Resource]** · [mode] **[Resource]** [interface, when only one offers it]
 
 **Ready for slicing: [YES|NO]**
 
@@ -74,5 +80,5 @@ Resources and capabilities:
 
 ## Record decisions
 
-- Use the planning document designated by the user, or create one in `docs/plan`.
+- Use the planning document designated by the user. If none is designated, ask which file should record the decisions, following the target repository's documentation conventions.
 - Record relevant design decisions even when they do not alter the boundary model.
