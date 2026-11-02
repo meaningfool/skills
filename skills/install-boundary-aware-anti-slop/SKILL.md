@@ -1,6 +1,6 @@
 ---
 name: install-boundary-aware-anti-slop
-description: Install, migrate, audit, or enforce the pinned generic Anti-Slop policy with strict/default and bounded tolerant boundary contracts. Use for TypeScript or JavaScript brownfield checks, remediation inventories, boundary-policy adoption, or upgrades from the former report-based wrapper.
+description: Install, migrate, audit, or enforce the pinned generic Anti-Slop policy with strict/default and bounded tolerant boundary contracts, and write or review those boundary declarations. Use for TypeScript or JavaScript brownfield checks, remediation inventories, boundary-policy adoption, upgrades from the former report-based wrapper, or code that adds, changes, removes, or reviews boundary(...) or boundary.tolerant(...) declarations.
 ---
 
 # Install boundary-aware Anti-Slop
@@ -9,6 +9,12 @@ Complete the installation without asking the user to choose policy, paths, sever
 strategies. Infer target
 conventions, preserve unrelated work, and stop with an exact conflict when an
 existing installation cannot be proven managed.
+
+## Write and review declarations
+
+To add, change, remove, or review `boundary(...)` or `boundary.tolerant(...)`
+declarations, follow [writing boundary declarations](references/writing-boundaries.md).
+For that work alone, install or reconfigure nothing.
 
 ## Inspect the target
 
@@ -41,13 +47,9 @@ complete brownfield check is clean through genuine remediation.
 Keep every finding active. Use no baselines, suppressions, lower severities,
 generated reports, snapshots, before/after captures, or report workflow.
 
-During remediation, validate the fields and types the consumer relies on;
-JSON-only sanitation is not an owned application contract. Keep generic JSON
-observation as direct schema use in tests or sinks, with its assertions intact.
-Account for affected consumers before removing any declaration. Require tests
-of the real decoder using valid JSON with missing fields, wrong types, and
-malformed nested values, as applicable. A replacement with JSON-only parsing
-must fail those tests. Review imported/custom schemas even when lint is clean.
+During remediation, follow
+[writing boundary declarations](references/writing-boundaries.md) for every
+declaration you add, change, or remove.
 
 ## Install the pinned generic dependency
 
@@ -210,6 +212,11 @@ OXLINT_BIN=<target-oxlint> \
   node <this-skill-directory>/fixtures/run-oxlint-fixtures.mjs
 node --test <this-skill-directory>/scripts/install.test.mjs
 ```
+
+The fixtures cover application-controlled input, current and legacy
+persistence, independently evolving provider data, precisely typed internal
+code, undeclared raw handling, non-constraining schemas, unbounded tolerant
+descriptors, unrecognized input, open results, and assertion laundering.
 
 Run `scripts/managed-assets.test.mjs` and `scripts/forward-test.mjs` when
 validating this skill repository.
