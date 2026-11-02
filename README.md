@@ -25,12 +25,11 @@ how the skills fit together.
 
 ## Standalone skills
 
-- `boundary-contracts` defines executable strict/default and bounded tolerant
-  trust transitions, plus the boundary-aware Oxlint rules and fixtures that
-  enforce them.
 - `install-boundary-aware-anti-slop` composes the pinned generic policy with
   the boundary-aware plugin, runtime, safe asset installer, brownfield check,
-  and verification fixtures.
+  and verification fixtures. It also guides writing and reviewing the
+  strict/default and bounded tolerant boundary declarations those rules
+  enforce.
 - `test-policy` applies portable test-quality principles before implementation
   and during review; its bundled procedure also supports requested suite audits.
 - `let-me-see` prepares an environment and manual verification scenarios.
