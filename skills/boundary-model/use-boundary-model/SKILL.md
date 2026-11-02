@@ -29,7 +29,7 @@ Related concepts:
 
 - Give everything a consumer can see or do a place in a boundary, without turning behind-the-scenes behavior into extra boundaries or capabilities.
 - Keep a resource or a capability only if removing it would make the boundary lose important meaning.
-- Include every tool or app someone uses to get something done with the system, including internal ones such as a testing tool or a sample integration. Leave out machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
+- Include every tool or app someone uses to get something done with what the system offers, internal ones included, such as a staff tool for writing and trying the product's content. Leave out what works on the system itself rather than with it: tools that set it up, build, check, deploy, or migrate it, direct reads of its storage or diagnostics, and machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
 - Several models are usually possible: prefer the simplest.
 - Ground your modelling in the stories of how external consumers use the system. Don't assume or invent.
 - Use plain language, in the consumer's own words.
