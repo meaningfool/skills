@@ -83,6 +83,19 @@ Shopper <-> Store                                              Level 1
 - Put an interface in brackets after a capability that only that interface offers.
 - Under `Inside <Provider>`, list its components with their responsibility and the areas of the level above they serve, then its boundaries. Keep names identical across levels.
 
+## Boundary map
+
+- **Definition**: A boundary map records a system's current boundaries, at every level. A system has one map, and it describes one revision of the code. A planned change does not belong in it.
+- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence.
+
+| Skill | What it does with the map |
+| --- | --- |
+| `extract-boundaries` | Writes it from the repository. It asks before replacing an existing map, which may hold decisions made by hand |
+| `review-boundaries` | Walks a person through it, level by level, and writes the reviewed map at its location |
+| `update-boundaries` | Brings it up to date with what changed since its revision |
+| `visualize-boundaries` | Checks it and draws it as a page or as still images |
+| `shape-boundaries` | Starts from it: marks each change NEW, MODIFIED or REMOVED against it, and keeps its names |
+
 ## Guidelines per concept
 
 ### Boundary
