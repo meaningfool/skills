@@ -71,10 +71,14 @@ existing managed installation before upgrading it and use upstream `--force`
 only after that audit proves every recorded asset unchanged. Leave a current
 installation byte- and timestamp-stable.
 
-Enable every generic rule except the three narrowly superseded by the boundary
-policy:
+Enable at `"error"` every generic rule that the pinned upstream skill enables,
+including its native Oxlint companion rule, except the three narrowly
+superseded by the boundary policy. At the pinned revision the policy is:
 
 ```text
+oxc/no-accumulating-spread
+anti-slop/no-array-filter-map
+anti-slop/no-reduce-accumulator-copy
 anti-slop/no-chained-type-assertions
 anti-slop/no-conditional-empty-object-spread
 anti-slop/no-known-value-widening
@@ -86,13 +90,18 @@ anti-slop/no-shape-in-symbol-names
 anti-slop/no-unknown-returns
 anti-slop/no-unknown-type-aliases
 anti-slop/no-widen-then-assert
+anti-slop/require-readable-spacing
 anti-slop/require-safety-comment-for-type-assertion
 ```
 
+When the configuration lists `plugins`, add `"oxc"` so the companion rule runs.
+
 The boundary-aware plugin replaces only
 `anti-slop/no-unknown-parameters`, `anti-slop/no-runtime-typeof`, and
-`anti-slop/no-unsafe-dictionary-type`. Unrelated generic rules remain active
-inside boundary declarations.
+`anti-slop/no-unsafe-dictionary-type`: those rules ban open input everywhere,
+while the boundary rules confine it to declarations that decode it. Unrelated
+generic rules remain active inside boundary declarations. Rules that a pin
+update adds join this policy; do not leave them unconfigured.
 
 ## Install the boundary assets
 
@@ -155,7 +164,7 @@ Use this policy overlay:
 }
 ```
 
-Add the twelve generic rules above at `"error"`. Preserve any explicitly
+Add the generic policy rules above at `"error"`. Preserve any explicitly
 selected Effect plugin.
 
 ### Brownfield check

@@ -19,7 +19,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { installPinnedSkill, readManifest } from "../../../scripts/install-pinned-skill.mjs";
-import { managedAssetIgnorePatterns } from "./managed-asset-contract.mjs";
+import { genericPolicyRules, managedAssetIgnorePatterns } from "./managed-asset-contract.mjs";
 import { installBoundaryAssets } from "./install.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -27,20 +27,7 @@ const skillRoot = resolve(scriptDirectory, "..");
 const repositoryRoot = resolve(scriptDirectory, "../../..");
 const companionSkill = readFileSync(join(skillRoot, "SKILL.md"), "utf8");
 const dependencyManifest = readManifest();
-const genericRules = [
-  "anti-slop/no-chained-type-assertions",
-  "anti-slop/no-conditional-empty-object-spread",
-  "anti-slop/no-known-value-widening",
-  "anti-slop/no-module-mocking",
-  "anti-slop/no-object-parameters",
-  "anti-slop/no-reflect-apply",
-  "anti-slop/no-reflect-get",
-  "anti-slop/no-shape-in-symbol-names",
-  "anti-slop/no-unknown-returns",
-  "anti-slop/no-unknown-type-aliases",
-  "anti-slop/no-widen-then-assert",
-  "anti-slop/require-safety-comment-for-type-assertion",
-];
+const genericRules = genericPolicyRules;
 const boundaryRules = [
   "boundary-aware/require-declared-boundary",
   "boundary-aware/require-constraining-schema",

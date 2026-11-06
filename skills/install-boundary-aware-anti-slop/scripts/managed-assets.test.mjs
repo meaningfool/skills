@@ -16,25 +16,16 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { installPinnedSkill, readManifest } from "../../../scripts/install-pinned-skill.mjs";
 import { installBoundaryAssets } from "./install.mjs";
-import { managedAssetIgnorePatterns } from "./managed-asset-contract.mjs";
+import {
+  genericPolicyRules,
+  managedAssetIgnorePatterns,
+  supersededGenericRules,
+} from "./managed-asset-contract.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "../../..");
 const dependencyManifest = readManifest();
-const genericRules = [
-  "anti-slop/no-chained-type-assertions",
-  "anti-slop/no-conditional-empty-object-spread",
-  "anti-slop/no-known-value-widening",
-  "anti-slop/no-module-mocking",
-  "anti-slop/no-object-parameters",
-  "anti-slop/no-reflect-apply",
-  "anti-slop/no-reflect-get",
-  "anti-slop/no-shape-in-symbol-names",
-  "anti-slop/no-unknown-returns",
-  "anti-slop/no-unknown-type-aliases",
-  "anti-slop/no-widen-then-assert",
-  "anti-slop/require-safety-comment-for-type-assertion",
-];
+const genericRules = genericPolicyRules;
 const boundaryRules = [
   "boundary-aware/require-declared-boundary",
   "boundary-aware/require-constraining-schema",
@@ -94,6 +85,7 @@ test("managed assets stay out of target checks while both plugins remain active"
 
 async function testStandaloneOxlintAndOxfmt({ toolRoot }) {
   const target = await createTarget(toolRoot, "standalone");
+  assertGenericPolicyCoversPlugin(target);
   const oxlint = join(toolRoot, "node_modules/.bin/oxlint");
   const oxfmt = join(toolRoot, "node_modules/.bin/oxfmt");
   writeJson(join(target, ".oxlintrc.json"), lintConfig());
@@ -275,6 +267,23 @@ async function createTarget(toolRoot, name) {
   const boundary = installBoundaryAssets({ cwd: target });
   assert.equal(boundary.changed, true, `${name}: boundary assets installed`);
   return target;
+}
+
+// The policy is every generic rule except the superseded ones, so a pin update
+// that changes the pinned plugin's rules must update the policy list.
+function assertGenericPolicyCoversPlugin(target) {
+  const index = readFileSync(join(target, "tools/oxlint/anti-slop/index.ts"), "utf8");
+  const pluginRules = [...index.matchAll(/^\s*"([a-z-]+)":\s*\w+Rule,$/gm)].map(
+    ([, rule]) => `anti-slop/${rule}`,
+  );
+  assert.ok(pluginRules.length > 0, "pinned generic plugin exports rules");
+  const policyRules = genericPolicyRules.filter((rule) => rule.startsWith("anti-slop/"));
+  assert.deepEqual(
+    [...policyRules, ...supersededGenericRules].sort(),
+    [...pluginRules].sort(),
+    "genericPolicyRules plus supersededGenericRules must name every pinned generic rule",
+  );
+  assert.equal(genericPolicyRules.includes("oxc/no-accumulating-spread"), true);
 }
 
 function lintConfig() {
