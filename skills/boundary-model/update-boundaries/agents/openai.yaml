@@ -1,4 +1,0 @@
-interface:
-  display_name: "Update Boundaries"
-  short_description: "Bring a boundary map up to date with the code"
-  default_prompt: "Use $update-boundaries to bring the boundary map up to date."

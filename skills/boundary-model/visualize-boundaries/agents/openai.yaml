@@ -1,4 +1,0 @@
-interface:
-  display_name: "Visualize Boundaries"
-  short_description: "Draw a boundary map as a page to review"
-  default_prompt: "Use $visualize-boundaries to draw this boundary map as a page I can review."
