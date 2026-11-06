@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Boundaries"
+  short_description: "Review a boundary map level by level"
+  default_prompt: "Use $review-boundaries to walk me through this boundary map."

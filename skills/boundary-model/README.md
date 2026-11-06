@@ -5,10 +5,18 @@ Use the skill that matches the current decision:
 | Need | Skill |
 | --- | --- |
 | Define or apply the boundary model | `use-boundary-model` |
+| Map an existing system's boundaries | `extract-boundaries` |
+| Review a boundary map with a person | `review-boundaries` |
+| Bring a boundary map up to date with the code | `update-boundaries` |
+| Check a boundary map, or draw it as a page or as still images | `visualize-boundaries` |
 | Express a change as the boundary changes it leads to | `shape-boundaries` |
 | Compare ways to slice a change into pieces of work | `slice` |
 | Settle the details of a change | `refine` |
 | Publish slices or changes as GitHub issues, each with its proof of done | `to-issues` |
+
+A system's boundary map, defined in `use-boundary-model`, is what these skills
+share. Extraction ends with a review, and so does an update, so the map at its
+location has always been reviewed.
 
 Each skill settles one kind of question:
 

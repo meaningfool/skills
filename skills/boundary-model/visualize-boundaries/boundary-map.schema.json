@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boundary map",
+  "description": "One system's boundaries, in the concepts of use-boundary-model. Resources and interfaces are defined once at the top and named everywhere else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "system",
+    "consumers",
+    "providers",
+    "outsideServices",
+    "resources",
+    "interfaces",
+    "boundaries",
+    "places",
+    "questions",
+    "cleanupCandidates",
+    "excluded"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "system": { "$ref": "#/$defs/system" },
+    "consumers": { "type": "array", "items": { "$ref": "#/$defs/described" } },
+    "providers": { "type": "array", "items": { "$ref": "#/$defs/component" } },
+    "outsideServices": { "type": "array", "items": { "$ref": "#/$defs/outsideService" } },
+    "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
+    "interfaces": { "type": "array", "items": { "$ref": "#/$defs/described" } },
+    "boundaries": { "type": "array", "items": { "$ref": "#/$defs/boundary" } },
+    "places": { "type": "array", "items": { "$ref": "#/$defs/place" } },
+    "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
+    "cleanupCandidates": { "type": "array", "items": { "$ref": "#/$defs/reasoned" } },
+    "excluded": { "type": "array", "items": { "$ref": "#/$defs/reasoned" } }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "names": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "corpus", "revision"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" },
+        "corpus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["included", "excluded"],
+          "properties": {
+            "included": { "$ref": "#/$defs/text" },
+            "excluded": { "$ref": "#/$defs/text" }
+          }
+        },
+        "revision": { "$ref": "#/$defs/text" }
+      }
+    },
+    "described": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" }
+      }
+    },
+    "reasoned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "why"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "why": { "$ref": "#/$defs/text" }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "answer"],
+      "properties": {
+        "question": { "$ref": "#/$defs/text" },
+        "answer": { "$ref": "#/$defs/text" }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" },
+        "properties": { "$ref": "#/$defs/names" }
+      }
+    },
+    "outsideService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "resources"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" },
+        "resources": { "$ref": "#/$defs/names" }
+      }
+    },
+    "areaRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consumer", "area"],
+      "properties": {
+        "consumer": { "$ref": "#/$defs/text" },
+        "area": { "$ref": "#/$defs/text" }
+      }
+    },
+    "component": {
+      "description": "A provider or a component. It is opened when it lists components; parts are its pieces that are not components.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "resources", "parts"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "description": { "$ref": "#/$defs/text" },
+        "resources": { "$ref": "#/$defs/names" },
+        "relationships": { "$ref": "#/$defs/text" },
+        "serves": { "type": "array", "items": { "$ref": "#/$defs/areaRef" } },
+        "parts": { "type": "array", "items": { "$ref": "#/$defs/reasoned" } },
+        "components": { "type": "array", "items": { "$ref": "#/$defs/component" } },
+        "sharedComponents": {
+          "description": "Components defined under another provider that also sit inside this one.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "serves"],
+            "properties": {
+              "name": { "$ref": "#/$defs/text" },
+              "serves": { "type": "array", "items": { "$ref": "#/$defs/areaRef" } }
+            }
+          }
+        }
+      }
+    },
+    "place": {
+      "description": "Where source files sit, so a later change can be traced to what it touches. A file belongs to the place whose matching path is the most specific; a pattern across folders, such as **/*.test.*, comes first.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["place", "kind", "paths"],
+      "properties": {
+        "place": { "$ref": "#/$defs/text" },
+        "kind": { "enum": ["component", "interface", "library", "tooling", "excluded", "cleanup"] },
+        "paths": { "$ref": "#/$defs/names" }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consumer", "provider", "interfaces", "areas", "evidence"],
+      "properties": {
+        "consumer": { "$ref": "#/$defs/text" },
+        "provider": { "$ref": "#/$defs/text" },
+        "interfaces": { "$ref": "#/$defs/names" },
+        "areas": { "type": "array", "items": { "$ref": "#/$defs/area" } },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "shows"],
+            "properties": {
+              "path": { "$ref": "#/$defs/text" },
+              "shows": { "$ref": "#/$defs/text" }
+            }
+          }
+        }
+      }
+    },
+    "area": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "description", "capabilities"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "type": { "enum": ["core", "supporting"] },
+        "description": { "$ref": "#/$defs/text" },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/capability" } }
+      }
+    },
+    "capability": {
+      "description": "Without interfaces, every interface of the boundary offers the capability.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "takes", "gives", "acts"],
+      "properties": {
+        "name": { "$ref": "#/$defs/text" },
+        "takes": { "$ref": "#/$defs/text" },
+        "gives": { "$ref": "#/$defs/text" },
+        "acts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "resource"],
+            "properties": {
+              "mode": { "enum": ["observes", "mutates", "produces", "reacts"] },
+              "resource": { "$ref": "#/$defs/text" }
+            }
+          }
+        },
+        "interfaces": { "$ref": "#/$defs/names" }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Extract Boundaries"
+  short_description: "Extract one evidence-backed boundary map"
+  default_prompt: "Use $extract-boundaries to extract one evidence-backed boundary map from this repository."
