@@ -93,7 +93,7 @@ The map is one JSON file that follows `boundary-map.schema.json`.
           "name": "Storefront",
           "description": "…",
           "resources": ["Order"],
-          "serves": [{ "consumer": "Shopper", "area": "Shopping" }],
+          "serves": [{ "consumer": "Shopper", "area": "Shop" }],
           "parts": [{ "name": "Routes", "why": "pass requests on" }]
         }
       ]
@@ -119,7 +119,7 @@ The map is one JSON file that follows `boundary-map.schema.json`.
       "interfaces": ["website"],
       "areas": [
         {
-          "name": "Shopping",
+          "name": "Shop",
           "type": "core",
           "description": "…",
           "capabilities": [
@@ -140,7 +140,7 @@ The map is one JSON file that follows `boundary-map.schema.json`.
       "interfaces": ["charges API"],
       "areas": [
         {
-          "name": "Charging",
+          "name": "Charge orders",
           "type": "core",
           "description": "…",
           "capabilities": [

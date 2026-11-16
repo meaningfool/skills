@@ -44,37 +44,37 @@ Resources of Store: Product · Order · Loyalty balance
 
 Shopper <-> Store                                              Level 1
   Interfaces: web shop · mobile app
-  Shopping (core)
+  Shop (core)
     Browse products: observes Product
     Place order: produces Order · mutates Loyalty balance
-    Review past orders: observes Order
-  Loyalty (supporting)
+    List past orders: observes Order
+  Track loyalty points (supporting)
     See loyalty balance: observes Loyalty balance [mobile app]
 
   Inside Store                                                 Level 2
-    Storefront: shopping and loyalty; serves Shopper › Shopping, Loyalty
-    Payments: charging orders; serves Shopper › Shopping
+    Storefront: shopping and loyalty; serves Shopper › Shop, Track loyalty points
+    Payments: charging orders; serves Shopper › Shop
     Resources of Payments: Charge
     Resources of Card network: Card authorization
 
     Storefront <-> Payments
       Interfaces: service-to-service API
-      Charging (core)
+      Charge orders (core)
         Charge order: produces Charge
         Refund order: mutates Charge
 
     Payments <-> Card network
       Interfaces: card network API
-      Authorization (core)
+      Authorize payments (core)
         Authorize card payment: produces Card authorization
 
     Inside Payments                                            Level 3
-      Charge service: runs charges; serves Storefront › Charging
-      Fraud check: scores payments; serves Storefront › Charging
+      Charge service: runs charges; serves Storefront › Charge orders
+      Fraud check: scores payments; serves Storefront › Charge orders
 
       Charge service <-> Fraud check
         Interfaces: service-to-service API
-        Scoring (core)
+        Score payments (core)
           Score payment: observes Charge
 ```
 
@@ -155,6 +155,7 @@ Examples:
 - A capability works on at least one resource, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not a capability: check the look-alikes below.
 - Every capability gives the consumer an output. If you cannot name it, you are probably looking at a step or an interaction.
 - Name a capability with a verb: "Change order status", not "Manage order lifecycle".
+- Use the usual verb for a usual action: List for getting a collection ("List my orders", not "See my orders"), Edit for changing what something says, and one capability for moving something between statuses ("Change order status"), not one per status.
 - Infer capabilities from interaction stories. "The employee submits a time-off request through the HR portal" gives the capability Request time off, on the resource Time-off request, through the HR portal interface.
 - Some things look like capabilities but are not:
   - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and retrying an uncertain start is part of starting. Checking seat availability, by contrast, is a traveler's goal in its own right. A check or confirmation whose result only decides whether another capability goes ahead is such a step, even when it reads a resource: checking that a user may administer an account is part of each administration action.
@@ -169,7 +170,7 @@ Examples:
 ### Area
 
 - Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, credits, or settings, in supporting areas. In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas.
-- Name an area after what the consumer comes to do, in their own words: Shopping, not Catalog and order management.
+- Name an area with a verb, in the imperative, after what the consumer comes to do: Shop, not Shopping or Catalog and order management. When an area holds one capability, give both the same name.
 
 ### Interface
 
