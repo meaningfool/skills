@@ -1,0 +1,197 @@
+/* Thin ink lines on paper, with one colour per kind of thing: consumers grey, components green,
+   outside services stone, interfaces blue, capabilities violet, resources amber. Layout: a
+   breadcrumb, then one open box whose columns are headed by what they hold, and a panel docked
+   beside it when something is selected, so the map stays scrollable. */
+:root {
+  --paper: #ffffff;
+  --ink: #1a1a1a;
+  --graphite: #6b6b6b;
+  --pencil: #c9c9c9;
+  --panel: #f5f5f4;
+  --panel-line: #e3e3e1;
+  --k-consumer: #6b7280;
+  --k-component: #2e8b57;
+  --k-outside: #8a7f72;
+  --k-interface: #2f6fdb;
+  --k-capability: #7a4fd1;
+  --k-resource: #b7791f;
+  --sans: "Public Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+    --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #17181a; --ink: #ececea; --graphite: #a0a09c; --pencil: #55565a; --panel: #212225; --panel-line: #33343a;
+  --k-consumer: #9aa1ad; --k-component: #5cc18a; --k-outside: #b0a596; --k-interface: #6f9cf0; --k-capability: #a585ef; --k-resource: #e0a64a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  --k: var(--graphite);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 0.92em; }
+
+.k-consumer { --k: var(--k-consumer); }
+.k-component { --k: var(--k-component); }
+.k-outside { --k: var(--k-outside); }
+.k-interface { --k: var(--k-interface); }
+.k-capability { --k: var(--k-capability); }
+.k-resource { --k: var(--k-resource); }
+
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-block: 12px 10px; border-bottom: 1px solid var(--panel-line); }
+.top h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.top .rev { font-family: var(--mono); font-size: 12px; color: var(--graphite); }
+.top p { margin: 0; font-size: 13px; color: var(--graphite); }
+#nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding-block: 10px 0; font-size: 13px; }
+#nav button { color: var(--graphite); border-bottom: 1px dotted var(--pencil); }
+#nav .b-back-nav { margin-right: 8px; padding: 1px 8px; color: var(--ink); border: 1px solid var(--panel-line); border-radius: 3px; }
+#nav .b-back-nav:hover { border-color: var(--ink); }
+#nav .b-back-nav:disabled { color: var(--pencil); border-color: var(--panel-line); cursor: default; }
+#nav button:hover { color: var(--ink); }
+.b-sep { color: var(--pencil); }
+main { display: flex; min-height: 0; min-width: 0; }
+#scroll { flex: 1 1 auto; min-width: 0; overflow: auto; }
+
+/* ---- stage and zones ---- */
+.b-stage { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 64px; align-items: start; width: max-content; min-width: 100%; padding: 14px 4px 48px; }
+.b-wires { position: absolute; top: 0; left: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.b-wires path { fill: none; stroke: var(--pencil); stroke-width: 1.25; }
+.b-wires path.lit { stroke: var(--ink); stroke-width: 1.75; opacity: 1; }
+.b-wires path.dim { opacity: 0.18; }
+.b-zone h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.z-consumer { --k: var(--k-consumer); }
+.z-interface { --k: var(--k-interface); }
+.z-capability { --k: var(--k-capability); }
+.z-component { --k: var(--k-component); }
+.z-resource { --k: var(--k-resource); }
+.z-uses { --k: var(--graphite); }
+.b-left > .b-zone-body { position: relative; width: 170px; }
+.b-left > .b-zone-body > .b-box { position: absolute; left: 0; width: 170px; }
+.b-col { display: flex; flex-direction: column; gap: 14px; }
+.b-right > .b-zone-body { position: relative; width: 210px; }
+.b-right > .b-zone-body > .b-box { position: absolute; left: 0; }
+.b-col.b-placed { position: relative; display: block; width: 210px; }
+.b-placed > .b-box { position: absolute; left: 0; }
+.b-cols { display: flex; align-items: flex-start; gap: 48px; }
+.dim { opacity: 0.22; }
+
+/* ---- the open box ---- */
+.b-frame { position: relative; border: 1.5px solid var(--ink); }
+.b-frame-head { position: relative; z-index: 2; padding: 10px 14px 12px; border-bottom: 1px solid var(--panel-line); background: var(--paper); }
+.b-frame-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.b-frame-head p { margin: 0; max-width: 70ch; color: var(--graphite); font-size: 13px; }
+.b-frame-head .b-through { margin-top: 4px; color: var(--ink); }
+.b-body { display: grid; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0 44px; padding: 14px 20px 20px 0; }
+.z-interface { width: 184px; }
+.z-interface > h3 { padding-left: 13px; }
+.z-interface > .b-zone-body, .z-capability > .b-zone-body, .z-resource > .b-zone-body { position: relative; }
+.z-capability > .b-zone-body { width: 196px; }
+.z-resource > .b-zone-body { width: 180px; }
+.b-keeps { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 8px; }
+.b-keeps-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k-resource); }
+.b-keeps .b-chips { margin-top: 0; }
+
+/* ---- boxes: one shape for every kind ---- */
+.b-box { position: relative; z-index: 2; display: block; width: 210px; padding: 6px 10px 7px; text-align: left; background: color-mix(in srgb, var(--k) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--k) 45%, var(--paper)); cursor: pointer; }
+.b-box:hover { border-color: var(--k); }
+.b-box.provider { border-width: 1.5px; }
+.b-box.k-outside { border-style: dashed; }
+.b-box.opens:hover { background: color-mix(in srgb, var(--k) 13%, var(--paper)); border-color: var(--k); }
+.b-box.lit { border-color: var(--k); box-shadow: 0 0 0 1.5px var(--k); }
+.b-box.chosen { box-shadow: 0 0 0 1.5px var(--k), 0 0 0 4px color-mix(in srgb, var(--ink) 25%, transparent); }
+.b-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.b-kind { font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--k); }
+.b-qual { font-size: 11px; color: var(--graphite); white-space: nowrap; }
+.b-name { display: block; width: 100%; font-weight: 600; font-size: 13.5px; text-align: left; }
+.b-sub { display: block; font-size: 11.5px; color: var(--graphite); }
+.b-via { display: block; margin-top: 2px; font-size: 11.5px; font-style: italic; color: var(--ink); }
+.b-area { position: absolute; left: 0; width: 100%; }
+
+/* ---- the way in: a bar at the foot of the box ---- */
+.b-go { display: flex; justify-content: space-between; align-items: baseline; width: calc(100% + 20px); margin: 7px -10px -7px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--k); border-top: 1px solid color-mix(in srgb, var(--k) 40%, var(--paper)); }
+.b-go span:last-child { font-size: 15px; line-height: 1; }
+.b-go:hover { background: var(--k); color: var(--paper); }
+.b-go.wide { --k: var(--k-component); width: 100%; margin: 18px 0 0; padding: 6px 10px; font-size: 13px; border: 1px solid var(--k); }
+
+/* ---- interfaces: dots on the edge of the open box ---- */
+.b-port { position: relative; display: block; width: calc(100% + 10px); margin-left: -10px; padding: 2px 0 2px 13px; font-size: 12px; line-height: 1.3; color: var(--ink); text-align: left; }
+.b-port::before { content: ""; position: absolute; left: -5px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; border: 1.5px solid var(--k-interface); background: var(--paper); }
+.b-port:hover, .b-port.lit { color: var(--k-interface); }
+.b-port.lit { font-weight: 600; }
+.b-port.lit::before { background: var(--k-interface); }
+.b-port.edge { position: absolute; left: 0; width: 184px; margin-left: 0; padding-right: 0; font-size: 12.5px; background: var(--paper); }
+
+/* ---- resources as chips ---- */
+.b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.b-chip { --k: var(--k-resource); padding: 1px 7px; font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--k) 50%, var(--paper)); background: color-mix(in srgb, var(--k) 8%, var(--paper)); border-radius: 999px; }
+.b-chip:hover, .b-chip.lit { border-color: var(--k); }
+.b-chip.lit { box-shadow: 0 0 0 1px var(--k); }
+
+/* ---- panel ---- */
+#panel { position: relative; flex: none; width: 340px; overflow: auto; padding: 16px 18px 24px; background: var(--panel); border-left: 1px solid var(--panel-line); }
+#panel[hidden] { display: none; }
+@media (max-width: 760px) {
+  main { flex-direction: column; }
+  #scroll { flex: 1 1 0; min-height: 0; }
+  #panel { width: auto; max-height: 50%; border-left: 0; border-top: 1px solid var(--panel-line); }
+}
+#panel h2 { margin: 2px 0 6px; font-size: 18px; font-weight: 600; padding-right: 24px; }
+#panel h3 { margin: 18px 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--graphite); }
+#panel p { margin: 0 0 6px; }
+.b-note { font-size: 12.5px; color: var(--graphite); }
+.b-back { margin-bottom: 10px; font-size: 12.5px; color: var(--graphite); }
+.b-back:hover { color: var(--k-capability); }
+.b-props { margin: 0; padding-left: 18px; }
+.b-props li + li { margin-top: 2px; }
+.b-close { position: absolute; top: 10px; right: 12px; font-size: 20px; line-height: 1; color: var(--graphite); }
+.b-caps { margin: 12px 0 0; padding: 0; list-style: none; }
+.b-caps li { padding: 4px 0 4px 10px; border-left: 2px solid color-mix(in srgb, var(--k-capability) 30%, var(--panel)); }
+.b-caps li + li { margin-top: 4px; }
+.b-caps button { display: block; font-size: 13.5px; }
+.b-caps button:hover, .b-caps li.on button { color: var(--k-capability); }
+.b-caps li.on { border-left-color: var(--k-capability); }
+.b-caps span { display: block; font-size: 12px; color: var(--graphite); }
+/* What leaves fades first, what arrives fades in after, while the boxes on both screens travel. */
+::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+::view-transition-old(root) { animation: 200ms ease-out both b-fade-out; }
+/* New content, such as a consumer that was not on the last screen, is fully there when the
+   travelling boxes land, at 560ms. */
+::view-transition-new(root) { animation: 280ms ease-in 280ms both b-fade-in; }
+/* Opening a box grows it into the frame of the next screen; going back shrinks the frame into it. */
+/* The rectangle grows or shrinks; what is inside it is shown at its real size, never stretched. */
+::view-transition-group(zoom) { overflow: hidden; }
+::view-transition-old(zoom), ::view-transition-new(zoom) { width: 100%; height: 100%; object-fit: none; object-position: left top; mix-blend-mode: normal; }
+::view-transition-old(zoom) { animation: 220ms ease-out both b-fade-out; }
+::view-transition-new(zoom) { animation: 400ms ease-in 160ms both b-fade-in; }
+@keyframes b-fade-out { to { opacity: 0; } }
+@keyframes b-fade-in { from { opacity: 0; } }
+
+/* ---- still images: the whole screen, then what the panel would say about it ---- */
+html.still, html.still body { height: auto; }
+html.still body, html.still main { display: block; }
+html.still #scroll { overflow: visible; }
+html.still #panel, html.still .b-back-nav, html.still .top p { display: none; }
+.b-legend { columns: 3; column-gap: 32px; padding: 16px 4px; border-top: 1px solid var(--panel-line); }
+.b-legend section { break-inside: avoid; margin-bottom: 16px; }
+.b-legend h3 { margin: 0 0 6px; font-size: 13px; }
+.b-legend p { margin: 0 0 6px; font-size: 13px; color: var(--graphite); }
+.b-legend ul { margin: 0; padding-left: 16px; }
+.b-legend li { margin-bottom: 4px; font-size: 13px; }

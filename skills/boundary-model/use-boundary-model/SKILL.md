@@ -29,7 +29,7 @@ Related concepts:
 
 - Give everything a consumer can see or do a place in a boundary, without turning behind-the-scenes behavior into extra boundaries or capabilities.
 - Keep a resource or a capability only if removing it would make the boundary lose important meaning.
-- Include every tool or app someone uses to get something done with the system, including internal ones such as a testing tool or a sample integration. Leave out machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
+- Include every tool or app someone uses to get something done with what the system offers, internal ones included, such as a staff tool for writing and trying the product's content. Leave out what works on the system itself rather than with it: tools that set it up, build, check, deploy, or migrate it, direct reads of its storage or diagnostics, and machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
 - Several models are usually possible: prefer the simplest.
 - Ground your modelling in the stories of how external consumers use the system. Don't assume or invent.
 - Use plain language, in the consumer's own words.
@@ -44,37 +44,37 @@ Resources of Store: Product · Order · Loyalty balance
 
 Shopper <-> Store                                              Level 1
   Interfaces: web shop · mobile app
-  Shopping (core)
+  Shop (core)
     Browse products: observes Product
     Place order: produces Order · mutates Loyalty balance
-    Review past orders: observes Order
-  Loyalty (supporting)
+    List past orders: observes Order
+  Track loyalty points (supporting)
     See loyalty balance: observes Loyalty balance [mobile app]
 
   Inside Store                                                 Level 2
-    Storefront: shopping and loyalty; serves Shopper › Shopping, Loyalty
-    Payments: charging orders; serves Shopper › Shopping
+    Storefront: shopping and loyalty; serves Shopper › Shop, Track loyalty points
+    Payments: charging orders; serves Shopper › Shop
     Resources of Payments: Charge
     Resources of Card network: Card authorization
 
     Storefront <-> Payments
       Interfaces: service-to-service API
-      Charging (core)
+      Charge orders (core)
         Charge order: produces Charge
         Refund order: mutates Charge
 
     Payments <-> Card network
       Interfaces: card network API
-      Authorization (core)
+      Authorize payments (core)
         Authorize card payment: produces Card authorization
 
     Inside Payments                                            Level 3
-      Charge service: runs charges; serves Storefront › Charging
-      Fraud check: scores payments; serves Storefront › Charging
+      Charge service: runs charges; serves Storefront › Charge orders
+      Fraud check: scores payments; serves Storefront › Charge orders
 
       Charge service <-> Fraud check
         Interfaces: service-to-service API
-        Scoring (core)
+        Score payments (core)
           Score payment: observes Charge
 ```
 
@@ -82,6 +82,19 @@ Shopper <-> Store                                              Level 1
 - Under each area, give every capability the resources it works on, each with its mode (see Output). One capability can work on several resources, and one resource can serve several capabilities.
 - Put an interface in brackets after a capability that only that interface offers.
 - Under `Inside <Provider>`, list its components with their responsibility and the areas of the level above they serve, then its boundaries. Keep names identical across levels.
+
+## Boundary map
+
+- **Definition**: A boundary map records a system's current boundaries, at every level. A system has one map, and it describes one revision of the code. A planned change does not belong in it.
+- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence.
+
+| Skill | What it does with the map |
+| --- | --- |
+| `extract-boundaries` | Writes it from the repository. It asks before replacing an existing map, which may hold decisions made by hand |
+| `review-boundaries` | Walks a person through it, level by level, and writes the reviewed map at its location |
+| `update-boundaries` | Brings it up to date with what changed since its revision |
+| `visualize-boundaries` | Checks it and draws it as a page or as still images |
+| `shape-boundaries` | Starts from it: marks each change NEW, MODIFIED or REMOVED against it, and keeps its names |
 
 ## Guidelines per concept
 
@@ -142,6 +155,7 @@ Examples:
 - A capability works on at least one resource, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not a capability: check the look-alikes below.
 - Every capability gives the consumer an output. If you cannot name it, you are probably looking at a step or an interaction.
 - Name a capability with a verb: "Change order status", not "Manage order lifecycle".
+- Use the usual verb for a usual action: List for getting a collection ("List my orders", not "See my orders"), Edit for changing what something says, and one capability for moving something between statuses ("Change order status"), not one per status.
 - Infer capabilities from interaction stories. "The employee submits a time-off request through the HR portal" gives the capability Request time off, on the resource Time-off request, through the HR portal interface.
 - Some things look like capabilities but are not:
   - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and retrying an uncertain start is part of starting. Checking seat availability, by contrast, is a traveler's goal in its own right. A check or confirmation whose result only decides whether another capability goes ahead is such a step, even when it reads a resource: checking that a user may administer an account is part of each administration action.
@@ -156,7 +170,7 @@ Examples:
 ### Area
 
 - Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, credits, or settings, in supporting areas. In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas.
-- Name an area after what the consumer comes to do, in their own words: Shopping, not Catalog and order management.
+- Name an area with a verb, in the imperative, after what the consumer comes to do: Shop, not Shopping or Catalog and order management. When an area holds one capability, give both the same name.
 
 ### Interface
 

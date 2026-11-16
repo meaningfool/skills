@@ -11,6 +11,12 @@ The skills in `skills/boundary-model/` form a related toolkit rather than a
 mandatory linear workflow:
 
 - `use-boundary-model` defines the model and its vocabulary.
+- `extract-boundaries` maps an existing system's boundaries from its repository.
+- `review-boundaries` walks a person through a map, level by level, with still
+  images and short questions.
+- `update-boundaries` brings a map up to date with what changed since its
+  revision.
+- `visualize-boundaries` checks a map and draws it as a page or as still images.
 - `shape-boundaries` expresses a change as the boundary changes it leads to.
 - `slice` compares ways to divide a change into work, along its boundary
   changes when it has them.

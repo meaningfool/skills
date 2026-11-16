@@ -33,7 +33,7 @@ The shape is complete when `Open` is empty and the user has confirmed the bounda
 - Start with external boundaries by default.
 - Include internal boundaries or technical choices when they add, remove, or redefine a boundary change.
 - Use the current conversation and linked documents as the starting point.
-- When a boundary map of the current system exists, start from it: mark each change NEW, MODIFIED, or REMOVED against it, and keep its names.
+- When the system has a boundary map, at the location in `use-boundary-model`, start from it: mark each change NEW, MODIFIED, or REMOVED against it, and keep its names.
 - Ask one question at a time and provide a recommended answer.
 - Resolve questions from the codebase or existing decisions instead of asking the user.
 - Label assumptions and ask only when they matter.
