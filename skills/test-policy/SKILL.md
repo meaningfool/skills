@@ -58,6 +58,7 @@ Additions from this audit:
 Additions from this audit:
 
 - Remove tests with no useful failure signal without requiring replacement. Consolidate tests that protect the same behavior.
+- Test the code as it is. A check that a removed or renamed name, route, field, or file stays absent may guard a change while it lands; delete it once the change is merged. When such a test also covers current behavior, keep that coverage and use an input that was never valid in place of the retired one.
 - When retiring a distinct failure signal, name the loss and its consequence. Follow the task's accepted risk scope; do not describe it as redundancy.
 - Keep tests of current behavior while changing its implementation. Retire superseded implementation assertions after the relevant replacement behavior is demonstrated.
 - Measure net reductions including fixtures and replacement tests. Treat reduction targets as planning goals, not grounds to discard consequential protection.
