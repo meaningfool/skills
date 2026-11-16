@@ -1,871 +1,888 @@
-// Draws a boundary map in two kinds of screen at every level: all the boundaries, and one
-// boundary in focus. Selecting an element shows its details in the side panel, and the panel
-// offers the way deeper: Focus from an interface, Go inside from a provider that has an inside.
-const map = JSON.parse(document.getElementById("map-data").textContent);
-const N = map.nodes;
-const R = map.resources;
-const boundaryById = new Map(map.boundaries.map((b) => [b.id, b]));
+// Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
+// interfaces, its capabilities, the components inside it, and what it uses; every box lists the
+// resources it owns. A click lights what the clicked thing connects to and explains it in the
+// panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
+// draws one screen for a still image, with what the panel would say written under the drawing.
+
+// ---------- the map ----------
+
+const RAW = JSON.parse(document.getElementById("map-data").textContent);
+const params = new URLSearchParams(location.search);
+const STILL = params.has("still");
+if (STILL) document.documentElement.classList.add("still");
 const MODE_WORD = { produces: "creates", mutates: "changes", observes: "reads", reacts: "reacts to" };
-const WRITES = new Set(["produces", "mutates"]);
 const KIND_WORD = {
   consumer: "Consumer",
-  system: "Provider",
+  provider: "Provider",
   component: "Component",
   outside: "Outside service",
 };
 
-const MARGIN = 32;
-const BOX_W = 190;
-const LABEL_W = 170;
-const GAP_W = LABEL_W + 110;
-const TAG_W = 150;
-const AREA_W = 300;
-const RES_W = 180;
-
-let route = null;
-let screen = null; // { lit(selection) -> Set of keys or null, panel(selection) -> nodes }
-let selected = null;
-
-// ---------- small helpers ----------
-
 function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null) continue;
+    if (v === undefined || v === null || v === false) continue;
     if (k === "class") e.className = v;
     else if (k === "html") e.innerHTML = v;
     else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
     else e.setAttribute(k, v);
   }
-  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) e.append(c);
+  for (const c of children.flat(3)) if (c !== null && c !== undefined && c !== false) e.append(c);
   return e;
 }
 
-function svg(tag, attrs = {}) {
+function svgEl(tag, attrs = {}) {
   const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null) continue;
-    if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
-    else e.setAttribute(k, v);
-  }
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
   return e;
 }
 
 const escapeHtml = (s) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
-// Inline Markdown as the map writes it: `code`, **bold** and _italic_.
 const inline = (s) =>
   escapeHtml(s)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|\W)_([^_]+)_(?=\W|$)/g, "$1<em>$2</em>");
-
-const avg = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const sentence = (s) => s.replace(/^[a-z]/, (c) => c.toUpperCase());
+const text = (tag, s, cls) => el(tag, { class: cls, html: inline(sentence(s)) });
 const unique = (xs) => [...new Set(xs)];
 
-// A horizontal S-curve between two points.
-const curve = ([x1, y1], [x2, y2]) => {
-  const dx = Math.max(24, (x2 - x1) / 2);
-  return `C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
+const nodes = new Map();
+for (const c of RAW.consumers) nodes.set(c.name, { ...c, kind: "consumer", children: [], shared: [], also: [] });
+const addComponent = (c, parent) => {
+  const n = {
+    name: c.name,
+    description: c.description,
+    kind: parent ? "component" : "provider",
+    parent: parent ?? null,
+    resources: c.resources,
+    parts: c.parts,
+    serves: [...(c.serves ?? [])],
+    children: (c.components ?? []).map((k) => k.name),
+    shared: [],
+    also: [],
+  };
+  nodes.set(c.name, n);
+  for (const k of c.components ?? []) addComponent(k, c.name);
 };
-
-function wire(layer, d, key, { arrow = false, reads = false } = {}) {
-  layer.append(
-    svg("path", {
-      d,
-      class: reads ? "wire reads" : "wire",
-      "data-key": key,
-      "data-arrow": arrow ? "1" : null,
-      "marker-end": arrow ? "url(#arrow)" : null,
-    }),
-  );
-}
-
-function hit(layer, d, onclick) {
-  layer.append(svg("path", { d, class: "hit", onclick }));
-}
-
-function newLayer(canvas) {
-  const layer = svg("svg");
-  const defs = svg("defs");
-  for (const [id, color] of [
-    ["arrow", "#c9c9c9"],
-    ["arrow-lit", "#d8401f"],
-  ]) {
-    const marker = svg("marker", {
-      id,
-      viewBox: "0 0 8 8",
-      refX: 7,
-      refY: 4,
-      markerWidth: 8,
-      markerHeight: 8,
-      orient: "auto",
-    });
-    marker.append(svg("path", { d: "M0,0 L8,4 L0,8 z", fill: color }));
-    defs.append(marker);
+for (const p of RAW.providers) addComponent(p, null);
+for (const s of RAW.outsideServices)
+  nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
+for (const p of RAW.providers)
+  for (const s of p.sharedComponents ?? []) {
+    nodes.get(p.name).shared.push(s.name);
+    nodes.get(s.name).also.push(p.name);
+    nodes.get(s.name).serves.push(...s.serves);
   }
-  layer.append(defs);
-  canvas.append(layer);
-  return layer;
-}
 
-function sizeCanvas(canvas, layer, width, height) {
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-  layer.setAttribute("width", width);
-  layer.setAttribute("height", height);
-}
+const boundaries = RAW.boundaries.map((b) => {
+  const boundary = { ...b, id: `${b.consumer} → ${b.provider}` };
+  boundary.areas = b.areas.map((a) => {
+    const area = { ...a, key: `${b.consumer} › ${a.name}`, boundary };
+    area.capabilities = a.capabilities.map((c) => ({
+      ...c,
+      area,
+      id: `${area.key} › ${c.name}`,
+      via: c.interfaces ?? b.interfaces,
+    }));
+    return area;
+  });
+  return boundary;
+});
+const allAreas = boundaries.flatMap((b) => b.areas);
+const allCapabilities = allAreas.flatMap((a) => a.capabilities);
+const capabilityById = new Map(allCapabilities.map((c) => [c.id, c]));
+const resourceByName = new Map(RAW.resources.map((r) => [r.name, r]));
+const interfaceText = new Map(RAW.interfaces.map((i) => [i.name, i.description]));
 
-function place(e, x, y, h) {
-  e.style.left = `${x}px`;
-  e.style.top = `${y}px`;
-  if (h !== undefined) e.style.height = `${h}px`;
-}
-
-// ---------- routes ----------
-
-// "#/eventpulse/interview_runtime?focus=<boundary>": the providers gone inside, then the focus.
-function readRoute() {
-  const [path, query = ""] = location.hash.replace(/^#\/?/, "").split("?");
-  const frames = path.split("/").filter((id) => N[id]?.hasInside);
-  const focus = new URLSearchParams(query).get("focus");
-  return { frames, focus: boundaryById.has(focus) ? focus : null };
-}
-
-const href = (r) => `#/${r.frames.join("/")}${r.focus ? `?focus=${r.focus}` : ""}`;
-const go = (r) => {
-  location.hash = href(r);
+const node = (name) => nodes.get(name);
+const incoming = (name) => boundaries.filter((b) => b.provider === name);
+const subtree = (name) => [name, ...node(name).children.flatMap(subtree)];
+const ancestors = (name) => {
+  const p = node(name).parent;
+  return p ? [...ancestors(p), p] : [];
 };
-const frameOf = (r) => r.frames.at(-1) ?? null;
-const boundaryName = (b) => `${N[b.consumer].name} ↔ ${N[b.provider].name}`;
+const topOf = (name) => ancestors(name)[0] ?? name;
+const handlers = (area) => {
+  const serving = [...nodes.values()]
+    .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
+    .map((n) => n.name);
+  return serving.length ? serving : [area.boundary.provider];
+};
+// A boundary drawn on a whole component that one of its inner components carries in detail.
+const refinedBy = (b) =>
+  boundaries.find((o) => o !== b && o.provider === b.provider && node(b.consumer).children.includes(o.consumer));
+const capabilitiesThrough = (b, iface) => b.areas.flatMap((a) => a.capabilities).filter((c) => c.via.includes(iface));
 
-function above(r) {
-  if (r.focus) return { frames: r.frames, focus: null };
-  if (r.frames.length) return { frames: r.frames.slice(0, -1), focus: null };
-  return null;
+// ---------- motion ----------
+
+// Moves things to their new place where the browser can, and just redraws where it cannot.
+const NO_MOTION = STILL || matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cssName = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function transition(fn) {
+  if (!document.startViewTransition || NO_MOTION || document.visibilityState === "hidden") return fn();
+  const t = document.startViewTransition(fn);
+  // A transition that a quicker click cuts short still runs its update; only the motion is lost.
+  t.ready.catch(() => {});
+  t.updateCallbackDone.catch(() => {});
+  t.finished.catch(() => {});
 }
 
-function titleOf(r) {
-  if (r.focus) return boundaryName(boundaryById.get(r.focus));
-  const frame = frameOf(r);
-  return frame ? `Inside ${N[frame].name}` : "All boundaries";
-}
+// ---------- screens ----------
 
-// ---------- map queries ----------
+// One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
+// components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
+// the resources it owns. Lines join who uses the box to its interfaces, its interfaces to its
+// capabilities, and each component to what it depends on; they light with whatever is in focus.
+// All providers, above every open box, shows each provider with the consumers that use it.
+const TOP = "";
+const slugOf = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
+// The page opens on the provider named after the system, when there is one, else on All providers.
+const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
 
-const boundariesAt = (frame) =>
-  map.boundaries.filter((b) =>
-    frame ? b.inside === frame || b.alsoInside?.includes(frame) : !b.inside,
-  );
-const isPartOf = (id, frame) => N[id].parent === frame || Boolean(N[id].alsoIn?.includes(frame));
-const componentsOf = (frame) => Object.keys(N).filter((id) => isPartOf(id, frame));
-const capabilitiesOf = (b) =>
-  b.areas.flatMap((a) =>
-    a.capabilities.map((c, i) => ({ ...c, area: a, key: `cap:${a.id}:${i}`, i })),
-  );
-const reaches = (b, iid, area) => area.capabilities.some((c) => c.via.includes(iid));
-const resourceName = (rid) => R[rid]?.name ?? rid;
+let openBox = TOP;
+let trail = []; // the boxes opened from All providers down to the open one, as you came
+const visited = []; // earlier trails, most recent last, for Back
+const memory = new Map(); // a screen's address -> its scroll and selection when it was left
+let selected = null; // the data-key of what is selected
+let current = null; // what the selection lights, from lineage
+let screen; // what the open box shows, from screenOf
+let reg; // what the screen drew, by data-key: the first element drawn for each
+let drawn; // every element drawn with a data-key, as [key, element]; a shared resource is drawn twice
 
-// ---------- panels ----------
+const servedBy = (name) =>
+  allAreas.filter((a) => node(name).serves?.some((s) => `${s.consumer} › ${s.area}` === a.key));
+const actedOn = (g) => unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.acts.map((x) => x.resource))));
+const actingOn = (r) => allCapabilities.filter((c) => c.acts.some((a) => a.resource === r));
+// A box and everything in it, components it shares with another provider included.
+const within = (name) => [name, ...[...node(name).children, ...node(name).shared].flatMap(within)];
+// A box opens when its screen has something of its own: components inside it, or capabilities it
+// offers across a boundary of its own. Otherwise its screen would repeat the level above.
+const opens = (name) => {
+  const n = node(name);
+  return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
+};
+// Who keeps a resource, leaving out a box when one of its inner components keeps it too.
+const ownersOf = (r) => {
+  const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
+  return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
+};
+const kindClass = (name) => `k-${node(name).kind === "provider" ? "component" : node(name).kind}`;
 
-const head = (kind, title) => [el("span", { class: "kind" }, kind), el("h2", {}, title)];
-const paragraph = (text) =>
-  el("p", { html: inline(text.replace(/^[a-z]/, (c) => c.toUpperCase())) });
-const description = (text) =>
-  text ? paragraph(text) : el("p", { class: "missing" }, "The map gives no description.");
-
-function field(title, values, className) {
-  if (!values.length) return [];
-  return [
-    el("h3", {}, title),
-    el("ul", { class: className }, values.map((v) => el("li", { html: inline(v) }))),
-  ];
-}
-
-const action = (text, onclick) => el("button", { class: "action", type: "button", onclick }, text);
-
-function nodePanel(id, { here = false } = {}) {
-  const n = N[id];
-  return [
-    ...head(KIND_WORD[n.kind], n.name),
-    description(n.description),
-    ...field("Resources", (n.resources ?? []).map(resourceName)),
-    ...field(
-      "Components",
-      componentsOf(id).map((c) => N[c].name),
-    ),
-    ...field(n.opened ? "Other parts" : "Parts", n.parts ?? []),
-    n.hasInside && !here
-      ? action(`Go inside ${n.name}`, () => go({ frames: [...route.frames, id], focus: null }))
-      : null,
-  ];
-}
-
-function interfacePanel(b, iid, { offerFocus }) {
-  const caps = capabilitiesOf(b).filter((c) => c.via.includes(iid));
-  return [
-    ...head("Interface", b.interfaces[iid]),
-    description(b.interfaceDetails?.[iid]),
-    ...field("Boundary", [boundaryName(b)]),
-    ...field(
-      "Capabilities",
-      caps.map((c) => c.name),
-    ),
-    offerFocus
-      ? action("Focus on this boundary", () => go({ frames: route.frames, focus: b.id }))
-      : null,
-  ];
-}
-
-function mapPanel() {
-  return [
-    ...head("Boundary map", map.system),
-    description(map.systemDescription),
-    ...field("Revision", map.revision ? [`\`${map.revision}\``] : []),
-  ];
-}
-
-// ---------- screen: all the boundaries at one level ----------
-
-function drawLevel(canvas, frame) {
-  const bs = boundariesAt(frame);
-  const ids = unique([
-    ...bs.flatMap((b) => [b.consumer, b.provider]),
-    ...(frame ? componentsOf(frame) : []),
-  ]);
-  const inside = (id) => !frame || isPartOf(id, frame);
-  const layer = newLayer(canvas);
-
-  // Columns: each consumer sits left of the providers it uses. What is outside the frame sits
-  // left of it when it only uses, right of it otherwise.
-  const preds = new Map(ids.map((id) => [id, []]));
-  for (const b of bs) preds.get(b.provider).push(b.consumer);
-  const col = new Map();
-  const visiting = new Set();
-  const depthOf = (id) => {
-    if (col.has(id)) return col.get(id);
-    visiting.add(id);
-    let c = 0;
-    for (const p of preds.get(id))
-      if (inside(p) && !visiting.has(p)) c = Math.max(c, depthOf(p) + 1);
-    visiting.delete(id);
-    col.set(id, c);
-    return c;
-  };
-  for (const id of ids) if (inside(id)) depthOf(id);
-  const lastInside = Math.max(0, ...col.values());
-  for (const id of ids)
-    if (!inside(id)) col.set(id, preds.get(id).length ? lastInside + 1 : -1);
-  const shift = [...col.values()].some((c) => c < 0) ? 1 : 0;
-  for (const [id, c] of col) col.set(id, c + shift);
-
-  const columns = Array.from({ length: Math.max(...col.values()) + 1 }, () => []);
-  const items = new Map();
-  for (const id of ids) {
-    const it = { key: `node:${id}`, id, col: col.get(id), prev: [], next: [] };
-    items.set(it.key, it);
-    columns[it.col].push(it);
+function screenOf(name) {
+  const top = name === TOP;
+  const n = top ? null : node(name);
+  const into = top ? [] : incoming(name).filter((b) => !refinedBy(b));
+  const reached = top ? [] : into.length ? into.flatMap((b) => b.areas) : servedBy(name);
+  const areas = [];
+  for (const a of reached) {
+    const same = areas.find((g) => g.name === a.name);
+    if (same) same.members.push(a);
+    else areas.push({ name: a.name, type: a.type, members: [a] });
   }
-  // A boundary that skips columns passes through one waypoint in each column it crosses.
-  const chains = new Map();
-  for (const b of bs) {
-    const from = items.get(`node:${b.consumer}`);
-    const to = items.get(`node:${b.provider}`);
-    const chain = [from];
-    for (let c = from.col + 1; c < to.col; c++) {
-      const w = { key: `via:${b.id}:${c}`, col: c, waypoint: true, b, from: chain.at(-1), prev: [], next: [] };
-      items.set(w.key, w);
-      columns[c].push(w);
-      chain.push(w);
-    }
-    chain.push(to);
-    for (let i = 1; i < chain.length; i++) {
-      if (chain[i].col !== chain[i - 1].col + 1) continue;
-      chain[i - 1].next.push(chain[i]);
-      chain[i].prev.push(chain[i - 1]);
-    }
-    chains.set(b.id, chain);
+  for (const g of areas) {
+    g.ports = unique(g.members.flatMap((a) => a.capabilities.flatMap((c) => c.via)));
+    g.consumers = unique(g.members.map((a) => a.boundary.consumer));
+    // Consumers may reach areas of the same name; each capability is listed once.
+    g.capabilities = g.members
+      .flatMap((a) => a.capabilities)
+      .filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i);
   }
-
-  // Order each column by the mean position of its neighbours, sweeping both ways.
-  const indexIn = (it) => columns[it.col].indexOf(it);
-  for (let pass = 0; pass < 4; pass++) {
-    const down = pass % 2 === 0;
-    for (const column of down ? columns.slice(1) : columns.slice(0, -1).reverse()) {
-      const pos = new Map(
-        column.map((it, i) => {
-          const near = down ? it.prev : it.next;
-          return [it, near.length ? avg(near.map(indexIn)) : i];
-        }),
-      );
-      column.sort((a, b) => pos.get(a) - pos.get(b));
-    }
-  }
-
-  // Boxes and interface labels, measured once they are on the page.
-  const providers = new Set(bs.map((b) => b.provider));
-  for (const it of items.values()) {
-    if (it.waypoint) {
-      it.h = 14;
-      continue;
-    }
-    const n = N[it.id];
-    const classes = ["box", n.kind === "outside" && "outside", providers.has(it.id) && "provider"];
-    it.el = el(
-      "div",
-      {
-        class: classes.filter(Boolean).join(" "),
-        "data-key": it.key,
-        style: `width:${BOX_W}px`,
-        onclick: (e) => select({ kind: "node", id: it.id, key: it.key }, e),
-      },
-      el("span", { class: "kind" }, KIND_WORD[n.kind]),
-      el("span", { class: "name" }, n.name),
-    );
-    canvas.append(it.el);
-    it.h = it.el.offsetHeight;
-  }
-  const labels = new Map();
-  for (const b of bs) {
-    labels.set(
-      b.id,
-      Object.entries(b.interfaces).map(([iid, name]) => {
-        const key = `iface:${b.id}:${iid}`;
-        const onclick = (e) => select({ kind: "interface", b, iid, key }, e);
-        const e = el("div", { class: "label", "data-key": key, style: `width:${LABEL_W}px`, onclick }, name);
-        canvas.append(e);
-        return { iid, key, el: e, h: e.offsetHeight, onclick };
-      }),
-    );
-  }
-  // Vertical positions, column by column. Each boundary's interface slots sit level with the
-  // stem that brings it, and each provider grows to hold its slots.
-  const SLOT_GAP = 12;
-  const top = frame ? MARGIN + 44 : MARGIN;
-  const x = (c) => MARGIN + 24 + c * (BOX_W + GAP_W);
-  const mid = (it) => it.y + it.h / 2;
-  const incoming = (id) => bs.filter((b) => b.provider === id);
-  const outgoing = (id) =>
-    bs
-      .filter((b) => b.consumer === id)
-      .sort((a, b) => indexIn(chains.get(a.id)[1]) - indexIn(chains.get(b.id)[1]));
-  const startY = (b) => {
-    const out = outgoing(b.consumer);
-    return mid(items.get(`node:${b.consumer}`)) + (out.indexOf(b) - (out.length - 1) / 2) * 10;
-  };
-  const arrivesAt = (b) => {
-    const prev = chains.get(b.id).at(-2);
-    return prev.waypoint ? mid(prev) : startY(b);
-  };
-  const slots = new Map(); // label key -> y of its line
-  const slotMid = new Map(); // boundary id -> mean y of its slots
-  for (const column of columns) {
-    let bottom = top;
-    for (const it of column) {
-      if (it.waypoint) {
-        const want = it.from.waypoint ? mid(it.from) : startY(it.b);
-        it.y = Math.max(want - it.h / 2, bottom);
-        bottom = it.y + it.h + 8;
-        continue;
-      }
-      const groups = incoming(it.id)
-        .map((b) => ({ b, ls: labels.get(b.id), want: arrivesAt(b) }))
-        .sort((a, b) => a.want - b.want);
-      // Each label sits above its line; a group's lines are centred on where its stem arrives.
-      for (const g of groups) {
-        let y = 0;
-        g.lines = g.ls.map((l) => {
-          const line = y + l.h + 3;
-          y += l.h + SLOT_GAP;
-          return line;
-        });
-        g.h = y;
-        g.offset = avg(g.lines);
-      }
-      it.y = groups.length ? Math.max(bottom, groups[0].want - groups[0].offset - 8) : bottom;
-      let y = it.y + 8;
-      for (const g of groups) {
-        y = Math.max(y, g.want - g.offset);
-        g.ls.forEach((l, i) => slots.set(l.key, y + g.lines[i]));
-        slotMid.set(g.b.id, y + g.offset);
-        y += g.h;
-      }
-      it.h = Math.max(it.h, y - it.y + 8);
-      bottom = it.y + it.h + 26;
-    }
-  }
-  // Then each consumer on the far left is centred on what it leads to, as far as room allows.
-  let bottom = top;
-  for (const it of columns[0]) {
-    const out = outgoing(it.id);
-    const leads = out.map((b) => {
-      const chain = chains.get(b.id);
-      return chain.length > 2 ? mid(chain[1]) : slotMid.get(b.id);
-    });
-    it.y = Math.max(out.length ? avg(leads) - it.h / 2 : it.y, bottom);
-    bottom = it.y + it.h + 26;
-  }
-
-  // The frame: the provider gone inside, around its components.
-  let height = 0;
-  for (const it of items.values()) height = Math.max(height, it.y + it.h);
-  if (frame) {
-    const cols = [...items.values()].filter((it) => !it.waypoint && inside(it.id)).map((it) => it.col);
-    const left = x(Math.min(...cols)) - 24;
-    const right = x(Math.max(...cols)) + BOX_W + 24;
-    const box = el("div", { class: "frame" });
-    place(box, left, MARGIN, height + 24 - MARGIN);
-    box.style.width = `${right - left}px`;
-    const title = el("div", { class: "frame-title" }, N[frame].name);
-    place(title, left + 10, MARGIN + 8);
-    canvas.prepend(box);
-    canvas.append(title);
-    height += 24;
-  }
-
-  for (const it of items.values()) if (it.el) place(it.el, x(it.col), it.y, it.h);
-
-  // Wires: one stem per boundary from its consumer, branching into one arrow per interface.
-  for (const it of items.values()) {
-    if (it.waypoint) continue;
-    for (const b of outgoing(it.id)) {
-      const chain = chains.get(b.id);
-      const to = chain.at(-1);
-      let at = [x(it.col) + BOX_W, startY(b)];
-      let d = `M${at[0]},${at[1]}`;
-      for (const w of chain.slice(1, -1)) {
-        const enter = [x(w.col), mid(w)];
-        d += ` ${curve(at, enter)} L${x(w.col) + BOX_W},${mid(w)}`;
-        at = [x(w.col) + BOX_W, mid(w)];
-      }
-      const end = x(to.col);
-      const bx = to.col > it.col ? end - LABEL_W - 40 : end - 40;
-      const branch = [bx, slotMid.get(b.id)];
-      d += ` ${curve(at, branch)}`;
-      wire(layer, d, `stem:${b.id}`);
-      for (const l of labels.get(b.id)) {
-        const ly = slots.get(l.key);
-        const bd = `M${branch[0]},${branch[1]} ${curve(branch, [bx + 24, ly])} L${end - 2},${ly}`;
-        wire(layer, bd, l.key, { arrow: true });
-        hit(layer, bd, l.onclick);
-        place(l.el, bx + 28, ly - l.h - 3);
-      }
-    }
-  }
-
-  const width = x(columns.length - 1) + BOX_W + MARGIN;
-  sizeCanvas(canvas, layer, width, height + MARGIN);
-
+  const inner = top ? [] : [...n.children, ...n.shared];
+  const consumers = top ? RAW.consumers.map((c) => c.name) : unique(areas.flatMap((g) => g.consumers));
+  const calls = top ? [] : boundaries.filter((b) => !refinedBy(b) && (b.consumer === name || inner.includes(b.consumer)));
+  // An outside service that a component inside calls sits with the components, in the column after
+  // its callers, so its links stay short; what the open box itself calls sits to the right of it.
+  const outside = unique(calls.filter((b) => inner.includes(b.consumer) && node(b.provider).kind === "outside").map((b) => b.provider));
+  const boxes = top ? RAW.providers.map((p) => p.name) : [...inner, ...outside];
+  const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
+  // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
+  const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
+  const owned = new Map();
+  for (const r of RAW.resources)
+    for (const h of unique(ownersOf(r.name).map(holder)).filter(Boolean)) owned.set(h, [...(owned.get(h) ?? []), r.name]);
   return {
-    lit(sel) {
-      const keys = new Set([sel.key]);
-      const touch = (b) => {
-        keys.add(`stem:${b.id}`);
-        keys.add(`node:${b.consumer}`);
-        keys.add(`node:${b.provider}`);
-      };
-      if (sel.kind === "interface") touch(sel.b);
-      if (sel.kind === "node")
-        for (const b of bs) {
-          if (b.consumer !== sel.id && b.provider !== sel.id) continue;
-          touch(b);
-          for (const iid of Object.keys(b.interfaces)) keys.add(`iface:${b.id}:${iid}`);
-        }
-      return keys;
-    },
-    panel(sel) {
-      if (!sel) return frame ? nodePanel(frame, { here: true }) : mapPanel();
-      if (sel.kind === "interface") return interfacePanel(sel.b, sel.iid, { offerFocus: true });
-      return nodePanel(sel.id);
-    },
+    top,
+    consumers,
+    ports: unique(areas.flatMap((g) => g.ports)),
+    areas,
+    through: !top && !into.length ? reached[0]?.boundary.provider : null,
+    columns: top ? [boxes] : columnsOf(boxes),
+    boxes,
+    uses,
+    visible: new Set([...consumers, ...boxes, ...uses]),
+    owned,
+    // What each component, or the open box, depends on among the boxes on this screen.
+    links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
   };
 }
 
-// ---------- screen: one boundary in focus ----------
-
-function drawFocus(canvas, b) {
-  const layer = newLayer(canvas);
-  const caps = capabilitiesOf(b);
-  const iids = Object.keys(b.interfaces);
-
-  const consumer = el(
-    "div",
-    {
-      class: `box${N[b.consumer].kind === "outside" ? " outside" : ""}`,
-      "data-key": "consumer",
-      style: `width:${BOX_W}px`,
-      onclick: (e) => select({ kind: "node", id: b.consumer, key: "consumer" }, e),
-    },
-    el("span", { class: "kind" }, KIND_WORD[N[b.consumer].kind]),
-    el("span", { class: "name" }, N[b.consumer].name),
-  );
-  canvas.append(consumer);
-
-  const tags = iids.map((iid) => {
-    const key = `iface:${iid}`;
-    const e = el(
-      "div",
-      {
-        class: "tag",
-        "data-key": key,
-        style: `width:${TAG_W}px`,
-        onclick: (ev) => select({ kind: "interface", iid, key }, ev),
-      },
-      b.interfaces[iid],
-    );
-    canvas.append(e);
-    return { iid, key, el: e, h: e.offsetHeight };
-  });
-
-  const areas = b.areas.map((a) => {
-    const rows = caps
-      .filter((c) => c.area === a)
-      .map((c) => ({
-        c,
-        el: el(
-          "div",
-          {
-            class: "capability",
-            "data-key": c.key,
-            onclick: (ev) => select({ kind: "capability", c, key: c.key }, ev),
-          },
-          c.name,
-        ),
-      }));
-    const title = el("div", { class: "area-title", "data-key": `area:${a.id}` }, el("b", {}, a.name), ` · ${a.type}`);
-    const e = el("div", { class: "area", style: `width:${AREA_W}px` }, title, ...rows.map((r) => r.el));
-    canvas.append(e);
-    return { a, el: e, title, rows, h: e.offsetHeight };
-  });
-
-  const rids = unique(caps.flatMap((c) => c.on.map(([rid]) => rid)));
-  const resources = rids.map((rid) => {
-    const key = `res:${rid}`;
-    const e = el(
-      "div",
-      {
-        class: "box",
-        "data-key": key,
-        style: `width:${RES_W}px`,
-        onclick: (ev) => select({ kind: "resource", rid, key }, ev),
-      },
-      el("span", { class: "kind" }, "Resource"),
-      el("span", { class: "name" }, resourceName(rid)),
-    );
-    canvas.append(e);
-    return { rid, key, el: e, h: e.offsetHeight };
-  });
-
-  // Columns: the consumer, the interfaces on the provider's outline, the areas, the resources.
-  const periX = MARGIN + BOX_W + 100;
-  const tagX = periX - TAG_W / 2;
-  const areaX = periX + TAG_W / 2 + 64;
-  const resX = areaX + AREA_W + 110;
-  const periRight = resX + RES_W + 36;
-  const contentTop = MARGIN + 52;
-
-  let bottom = contentTop;
-  for (const ar of areas) {
-    ar.y = bottom;
-    bottom += ar.h + 24;
-    for (const r of ar.rows) r.mid = ar.y + r.el.offsetTop + r.el.offsetHeight / 2;
-    ar.titleMid = ar.y + ar.title.offsetHeight / 2;
-  }
-  const rows = areas.flatMap((ar) => ar.rows);
-
-  const stack = (list, want, gap) => {
-    let y = contentTop;
-    for (const it of list) {
-      it.y = Math.max(want(it) - it.h / 2, y);
-      y = it.y + it.h + gap;
-    }
+function columnsOf(ids) {
+  const depth = new Map();
+  const visit = (id, seen) => {
+    if (depth.has(id)) return depth.get(id);
+    const before = boundaries.filter((b) => b.provider === id && ids.includes(b.consumer) && !seen.has(b.consumer));
+    const d = Math.max(-1, ...before.map((b) => visit(b.consumer, new Set([...seen, id])))) + 1;
+    depth.set(id, d);
+    return d;
   };
-  stack(resources, (r) => avg(rows.filter((row) => row.c.on.some(([rid]) => rid === r.rid)).map((row) => row.mid)), 16);
-  stack(tags, (t) => {
-    const reached = areas.filter((ar) => reaches(b, t.iid, ar.a));
-    return reached.length ? avg(reached.map((ar) => ar.titleMid)) : contentTop;
-  }, 16);
-  const consumerH = consumer.offsetHeight;
-  const consumerY = Math.max(contentTop, avg(tags.map((t) => t.y + t.h / 2)) - consumerH / 2);
+  ids.forEach((id) => visit(id, new Set([id])));
+  const columns = [];
+  for (const id of ids) (columns[depth.get(id)] ??= []).push(id);
+  return columns.filter(Boolean);
+}
 
-  let periBottom = 0;
-  for (const it of [...areas, ...resources, ...tags]) periBottom = Math.max(periBottom, it.y + it.h);
-  periBottom += 28;
+// ---------- what a selection lights ----------
 
-  const perimeter = el("div", { class: "frame" });
-  place(perimeter, periX, MARGIN, periBottom - MARGIN);
-  perimeter.style.width = `${periRight - periX}px`;
-  canvas.prepend(perimeter);
-  const providerTitle = el(
-    "div",
-    {
-      class: "frame-title",
-      "data-key": "provider",
-      onclick: (e) => select({ kind: "node", id: b.provider, key: "provider" }, e),
-    },
-    N[b.provider].name,
-  );
-  place(providerTitle, periX + TAG_W / 2 + 10, MARGIN + 8);
-  canvas.append(providerTitle);
-
-  place(consumer, MARGIN, consumerY);
-  for (const t of tags) place(t.el, tagX, t.y);
-  for (const ar of areas) place(ar.el, areaX, ar.y);
-  for (const r of resources) place(r.el, resX, r.y);
-
-  // Wires: consumer to each interface, each interface to the areas it reaches, each capability
-  // to the resources it acts on.
-  const start = [MARGIN + BOX_W, consumerY + consumerH / 2];
-  const branch = [tagX - 40, start[1]];
-  wire(layer, `M${start[0]},${start[1]} L${branch[0]},${branch[1]}`, "stem");
-  for (const t of tags) {
-    const ty = t.y + t.h / 2;
-    const d = `M${branch[0]},${branch[1]} ${curve(branch, [tagX - 2, ty])}`;
-    wire(layer, d, t.key, { arrow: true });
-    for (const ar of areas) {
-      if (!reaches(b, t.iid, ar.a)) continue;
-      const from = [tagX + TAG_W, ty];
-      wire(layer, `M${from[0]},${from[1]} ${curve(from, [areaX - 2, ar.titleMid])}`, `link:${t.iid}:${ar.a.id}`, { arrow: true });
+// What leads to the selection and what it leads to, on this screen. A component that is not on the
+// screen lights the box that holds it, which then says which components it stands for.
+function lineage(key) {
+  const s = screen;
+  const keys = new Set([key]);
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  // Components to light, with what each does; each lights the box on this screen that holds it.
+  const requests = [];
+  const lightBox = (name, role) => name && requests.push([name, role]);
+  const holders = (name) => (s.visible.has(name) ? [name] : [...s.visible].filter((v) => within(v).includes(name)));
+  const upstream = (g) => {
+    keys.add(`a:${g.name}`);
+    g.ports.forEach((p) => keys.add(`p:${p}`));
+    g.consumers.forEach((c) => keys.add(`b:${c}`));
+  };
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    if (g) {
+      upstream(g);
+      g.members.flatMap(handlers).forEach((h) => lightBox(h, "handles"));
+      actedOn(g).forEach((r) => keys.add(`r:${r}`));
     }
   }
-  for (const row of rows)
-    for (const [rid, mode] of row.c.on) {
-      const res = resources.find((r) => r.rid === rid);
-      const from = [areaX + AREA_W, row.mid];
-      const d = `M${from[0]},${from[1]} ${curve(from, [resX, res.y + res.h / 2])}`;
-      wire(layer, d, `use:${row.c.key}:${rid}`, { reads: !WRITES.has(mode) });
-    }
-
-  sizeCanvas(canvas, layer, periRight + MARGIN, periBottom + MARGIN);
-
-  const toArea = (keys, a, iidsIn) => {
-    keys.add(`area:${a.id}`);
-    for (const iid of iidsIn) {
-      keys.add(`iface:${iid}`);
-      keys.add(`link:${iid}:${a.id}`);
-    }
-    if (iidsIn.length) {
-      keys.add("stem");
-      keys.add("consumer");
-    }
-  };
-  const toResources = (keys, c, only) => {
-    for (const [rid] of c.on) {
-      if (only && rid !== only) continue;
-      keys.add(`use:${c.key}:${rid}`);
-      keys.add(`res:${rid}`);
-    }
-  };
-
-  return {
-    lit(sel) {
-      const keys = new Set([sel.key]);
-      if (sel.kind === "interface") {
-        for (const c of caps) {
-          if (!c.via.includes(sel.iid)) continue;
-          keys.add(c.key);
-          toArea(keys, c.area, [sel.iid]);
-          toResources(keys, c);
-        }
-        keys.add("stem");
-        keys.add("consumer");
-      }
-      if (sel.kind === "capability") {
-        toArea(keys, sel.c.area, sel.c.via);
-        toResources(keys, sel.c);
-      }
-      // Interfaces link to areas, so a resource lights every interface that reaches an area
-      // acting on it.
-      if (sel.kind === "resource")
-        for (const c of caps) {
-          if (!c.on.some(([rid]) => rid === sel.rid)) continue;
-          keys.add(c.key);
-          toArea(keys, c.area, iids.filter((iid) => reaches(b, iid, c.area)));
-          toResources(keys, c, sel.rid);
-        }
-      if (sel.kind === "node" && sel.id === b.consumer) {
-        keys.add("stem");
-        for (const iid of iids) keys.add(`iface:${iid}`);
-      }
-      if (sel.kind === "node" && sel.id === b.provider) return null;
-      return keys;
-    },
-    panel(sel) {
-      if (!sel) return boundaryPanel(b);
-      if (sel.kind === "interface") return interfacePanel(b, sel.iid, { offerFocus: false });
-      if (sel.kind === "capability") return capabilityPanel(b, sel.c);
-      if (sel.kind === "resource") return resourcePanel(b, sel.rid);
-      return nodePanel(sel.id);
-    },
-  };
-}
-
-function boundaryPanel(b) {
-  return [
-    ...head("Boundary", boundaryName(b)),
-    ...field(
-      "Interfaces",
-      Object.entries(b.interfaces).map(([iid, name]) =>
-        b.interfaceDetails?.[iid] ? `${name}: ${b.interfaceDetails[iid]}` : name,
-      ),
-    ),
-    ...field(
-      "Areas",
-      b.areas.map((a) => `${a.name} (${a.type}): ${a.description}`),
-    ),
-    ...field(
-      "Evidence",
-      b.evidence.map(([path, why]) => `\`${path}\`: ${why}`),
-      "evidence",
-    ),
-  ];
-}
-
-function capabilityPanel(b, c) {
-  return [
-    ...head("Capability", c.name),
-    ...field("Takes", [c.takes]),
-    ...field("Gives", [c.gives]),
-    ...field("Area", [`${c.area.name} (${c.area.type}): ${c.area.description}`]),
-    ...field(
-      "Interfaces",
-      c.via.map((iid) => b.interfaces[iid]),
-    ),
-    ...field(
-      "Resources",
-      c.on.map(([rid, mode]) => `${MODE_WORD[mode] ?? mode} **${resourceName(rid)}**`),
-    ),
-  ];
-}
-
-function resourcePanel(b, rid) {
-  const r = R[rid];
-  const keptBy = Object.keys(N).filter((id) => N[id].resources?.includes(rid));
-  return [
-    ...head("Resource", resourceName(rid)),
-    description(r?.definition),
-    ...field("Properties", r?.properties ?? []),
-    ...field(
-      "Kept by",
-      keptBy.map((id) => N[id].name),
-    ),
-    ...field(
-      "Capabilities",
-      capabilitiesOf(b).flatMap((c) =>
-        c.on.filter(([id]) => id === rid).map(([, mode]) => `${c.name}: ${MODE_WORD[mode] ?? mode}`),
-      ),
-    ),
-  ];
-}
-
-// ---------- still image ----------
-
-// A still image cannot be clicked, so it carries under the drawing what the panels would say.
-const STILL = new URLSearchParams(location.search).has("still");
-if (STILL) document.documentElement.classList.add("still");
-
-function legendGroups(r) {
-  const nodeEntry = (id) => [N[id].name, N[id].description];
-  if (r.focus) {
-    const b = boundaryById.get(r.focus);
-    const rids = [...new Set(capabilitiesOf(b).flatMap((c) => c.on.map(([rid]) => rid)))];
-    return [
-      ["Boundary", [b.consumer, b.provider].map(nodeEntry)],
-      ["Interfaces", Object.entries(b.interfaces).map(([iid, name]) => [name, b.interfaceDetails[iid]])],
-      ...b.areas.map((a) => [
-        `${a.name} (${a.type}): ${a.description}`,
-        a.capabilities.map((c) => [c.name, `takes ${c.takes}; gives ${c.gives}`]),
-      ]),
-      ["Resources", rids.map((rid) => [R[rid].name, R[rid].definition])],
-    ];
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    if (g) keys.add(`a:${g.name}`);
+    c.via.filter((p) => s.ports.includes(p)).forEach((p) => keys.add(`p:${p}`));
+    lightBox(c.area.boundary.consumer, "asks");
+    handlers(c.area).forEach((h) => lightBox(h, "handles"));
+    c.acts.forEach((a) => keys.add(`r:${a.resource}`));
   }
-  const frame = frameOf(r);
-  const shown = boundariesAt(frame);
-  const ids = [
-    ...(frame ? componentsOf(frame) : []),
-    ...shown.flatMap((b) => [b.consumer, b.provider]),
-  ];
-  const interfaces = new Map(
-    shown.flatMap((b) =>
-      Object.entries(b.interfaces).map(([iid, name]) => [name, b.interfaceDetails[iid]]),
-    ),
-  );
-  return [
-    ["Elements", [...new Set(ids)].map(nodeEntry)],
-    ["Interfaces", [...interfaces]],
-  ];
+  if (kind === "p")
+    for (const g of s.areas.filter((x) => x.ports.includes(id))) {
+      keys.add(`a:${g.name}`);
+      g.members.filter((a) => a.boundary.interfaces.includes(id)).forEach((a) => keys.add(`b:${a.boundary.consumer}`));
+    }
+  if (kind === "r") {
+    const caps = actingOn(id);
+    for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
+    ownersOf(id).forEach((o) => lightBox(o, "owns"));
+    unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
+  }
+  if (kind === "b") {
+    const inside = within(id);
+    if (s.consumers.includes(id))
+      for (const g of s.areas.filter((x) => x.consumers.includes(id))) {
+        keys.add(`a:${g.name}`);
+        g.members.filter((a) => a.boundary.consumer === id).forEach((a) => a.capabilities.forEach((c) => c.via.forEach((p) => keys.add(`p:${p}`))));
+      }
+    for (const g of s.areas) if (g.members.some((a) => handlers(a).some((h) => inside.includes(h)))) upstream(g);
+    for (const b of boundaries) {
+      if (refinedBy(b)) continue;
+      for (const [near, far, role] of [
+        [b.provider, b.consumer, "calls"],
+        [b.consumer, b.provider, "called"],
+      ]) {
+        if (!inside.includes(near) || inside.includes(far)) continue;
+        // A call to a component that the other box also contains stays inside both.
+        if (holders(far).some((o) => within(o).includes(near))) continue;
+        lightBox(far, role);
+      }
+    }
+    (s.owned.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+  }
+  // A shared component sits in more than one box on the screen: it lights the one already lit, else
+  // the one holding the selection, else the one it is defined in.
+  const home = kind === "r" ? [...s.owned].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const notes = new Map(); // a lit box -> what the components inside it do, by role
+  const assign = (at, name, role) => {
+    keys.add(`b:${at}`);
+    if (at === name || at === id) return;
+    const roles = notes.get(at) ?? notes.set(at, new Map()).get(at);
+    (roles.get(role) ?? roles.set(role, new Set()).get(role)).add(name);
+  };
+  const later = [];
+  for (const [name, role] of requests) {
+    const c = holders(name);
+    if (c.length === 1) assign(c[0], name, role);
+    else if (c.length > 1) later.push([name, role, c]);
+  }
+  for (const [name, role, c] of later)
+    assign(c.find((v) => keys.has(`b:${v}`)) ?? c.find((v) => v === home) ?? c.find((v) => ancestors(name).includes(v)) ?? c[0], name, role);
+  return { keys, notes };
 }
 
-function drawLegend(r) {
-  const groups = legendGroups(r).map(([title, entries]) =>
-    el("section", {}, [
-      el("h3", {}, title),
-      el(
-        "ul",
-        {},
-        entries.map(([name, text]) => el("li", { html: inline(`**${name}**: ${text}`) })),
-      ),
-    ]),
-  );
-  const legend = el("div", { class: "legend" }, groups);
-  const canvas = document.querySelector(".canvas");
-  legend.style.width = `${Math.max(canvas.offsetWidth, 1200)}px`;
-  document.querySelector(".legend")?.remove();
-  document.querySelector(".stage").append(legend);
-  const { bottom } = legend.getBoundingClientRect();
-  const width = Math.max(canvas.offsetWidth, legend.offsetWidth);
-  document.documentElement.dataset.stillSize = `${Math.ceil(width)}x${Math.ceil(bottom)}`;
+// What the components inside a lit box do with the selection: "Run controller owns it; Conversations
+// and Execution kits act on it."
+const VERBS = { owns: ["owns it", "own it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+function noteOf(roles) {
+  const owners = roles.get("owns") ?? new Set();
+  const parts = [...roles].map(([role, names]) => {
+    const list = [...names].filter((n) => role === "owns" || !owners.has(n));
+    if (!list.length) return null;
+    const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
+    return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
+  });
+  return `${parts.filter(Boolean).join("; ")}.`;
 }
 
-// ---------- selection and drawing ----------
+// ---------- drawing ----------
 
-function select(sel, event) {
+const pick = (key) => (event) => {
   event.stopPropagation();
-  selected = sel;
-  refresh();
+  selected = key;
+  render();
+};
+
+const register = (key, e) => {
+  e.dataset.key = key;
+  if (!reg.has(key)) reg.set(key, e);
+  drawn.push([key, e]);
+  return e;
+};
+
+const kindLine = (kind, qualifier) =>
+  el("span", { class: "b-top" }, el("span", { class: "b-kind" }, kind), qualifier && el("span", { class: "b-qual" }, qualifier));
+
+function chips(names) {
+  if (!names.length) return null;
+  return el(
+    "span",
+    { class: "b-chips" },
+    names.map((r) => register(`r:${r}`, el("button", { type: "button", class: "b-chip", onclick: pick(`r:${r}`) }, r))),
+  );
 }
 
-function refresh() {
-  const keys = selected ? screen.lit(selected) : null;
-  for (const e of document.querySelectorAll(".canvas [data-key]")) {
-    const on = Boolean(keys?.has(e.dataset.key));
-    e.classList.toggle("lit", on);
-    e.classList.toggle("dim", Boolean(keys) && !on);
-    e.classList.toggle("chosen", e.dataset.key === selected?.key && e.tagName !== "path");
-    if (e.dataset.arrow) e.setAttribute("marker-end", `url(#arrow${on ? "-lit" : ""})`);
+function box(name, where) {
+  const n = node(name);
+  const key = `b:${name}`;
+  const inner = n.children.length + n.shared.length;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${topOf(name)}` : null;
+  const canOpen = opens(name);
+  const enter = (e) => (e.stopPropagation(), go(name));
+  const note = current?.notes.get(name);
+  return register(
+    key,
+    el(
+      "section",
+      { class: `b-box ${kindClass(name)}${n.kind === "provider" ? " provider" : ""}${canOpen ? " opens" : ""}`, onclick: pick(key), ondblclick: canOpen ? enter : null },
+      kindLine(shared ?? KIND_WORD[n.kind]),
+      el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
+      note && el("span", { class: "b-via" }, noteOf(note)),
+      where === "inside" && chips(screen.owned.get(name) ?? []),
+      canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
+    ),
+  );
+}
+
+function areaBox(g) {
+  return register(
+    `a:${g.name}`,
+    el(
+      "button",
+      { type: "button", class: "b-box k-capability b-area", onclick: pick(`a:${g.name}`) },
+      kindLine("Capabilities", `${g.type}, ${g.capabilities.length}`),
+      el("span", { class: "b-name" }, g.name),
+    ),
+  );
+}
+
+const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, el("h3", {}, title), el("div", { class: "b-zone-body" }, content));
+
+function frame(name) {
+  const n = node(name);
+  const s = screen;
+  const own = s.owned.get(name) ?? [];
+  const body = [
+    zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
+    zone("z-capability", "Capabilities", s.areas.map(areaBox)),
+    s.columns.length > 0 &&
+      zone("z-component", "Components", el("div", { class: "b-cols" }, s.columns.map((c) => el("div", { class: "b-col b-placed" }, c.map((id) => box(id, "inside")))))),
+  ];
+  return el(
+    "section",
+    { class: `b-frame ${kindClass(name)}` },
+    el(
+      "header",
+      { class: "b-frame-head" },
+      el("span", { class: "b-kind" }, KIND_WORD[n.kind] + (n.also.length ? `, shared with ${n.also.join(", ")}` : "")),
+      el("h2", {}, name),
+      text("p", n.description),
+      s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
+      own.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Owns"), chips(own)),
+    ),
+    el("div", { class: "b-body" }, body),
+  );
+}
+
+// Places absolutely positioned items, each as close as it can to the height it wants its centre at.
+// Items that would overlap form a block, kept in order and centred on what its items want on
+// average, so that several boxes linked to one thing sit around it rather than below it. Returns
+// the height used.
+function settle(items, gap) {
+  const blocks = [...items].sort((a, b) => a.want - b.want).map((it) => ({ items: [it] }));
+  const place = (b) => {
+    let off = 0;
+    const tops = b.items.map((it) => {
+      const want = it.want - it.el.offsetHeight / 2 - off;
+      off += it.el.offsetHeight + gap;
+      return want;
+    });
+    b.height = off - gap;
+    b.top = Math.max(0, avg(tops));
+  };
+  blocks.forEach(place);
+  for (let i = 1; i < blocks.length; ) {
+    const [a, b] = [blocks[i - 1], blocks[i]];
+    if (a.top + a.height + gap <= b.top) i++;
+    else {
+      a.items.push(...b.items);
+      blocks.splice(i, 1);
+      place(a);
+      i = 1;
+    }
   }
-  document.querySelector(".panel").replaceChildren(...screen.panel(selected).filter(Boolean));
+  for (const b of blocks) {
+    let y = b.top;
+    for (const it of b.items) {
+      it.el.style.top = `${y}px`;
+      y += it.el.offsetHeight + gap;
+    }
+  }
+  const last = blocks.at(-1);
+  return last ? last.top + last.height : 0;
 }
 
 function render() {
-  route = readRoute();
-  selected = null;
-  const up = above(route);
-  document
-    .querySelector(".heading")
-    .replaceChildren(
-      up ? el("a", { class: "back", href: href(up) }, `← ${titleOf(up)}`) : "",
-      el("h1", {}, titleOf(route)),
+  reg = new Map();
+  drawn = [];
+  screen = screenOf(openBox);
+  const s = screen;
+  current = null;
+  if (selected)
+    try {
+      current = lineage(selected);
+    } catch {
+      selected = null;
+    }
+  const stage = el("div", { class: `b-stage${s.top ? " top" : ""}` });
+  const wires = svgEl("svg", { class: "b-wires" });
+  const left = zone("z-consumer b-left", "Used by", s.consumers.map((c) => box(c, "left")));
+  const middle = s.top ? zone("z-component b-mid", "Providers", el("div", { class: "b-col b-placed" }, s.boxes.map((p) => box(p, "inside")))) : frame(openBox);
+  const right = s.uses.length > 0 && zone("z-uses b-right", "Uses", s.uses.map((u) => box(u, "right")));
+  stage.append(wires, left, middle, ...[right].filter(Boolean));
+  document.getElementById("scroll").replaceChildren(stage);
+  drawNav();
+  if (selected && !reg.has(selected) && !selected.startsWith("c:")) {
+    selected = null;
+    return render();
+  }
+
+  const o = stage.getBoundingClientRect();
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return { l: r.left - o.left, r: r.right - o.left, t: r.top - o.top, b: r.bottom - o.top, y: (r.top + r.bottom) / 2 - o.top };
+  };
+  const bodyOf = (cls) => stage.querySelector(`.${cls} > .b-zone-body`);
+
+  // Capabilities stack in the order of the interfaces that reach them, each interface sits level
+  // with its capabilities, each component level with the capabilities it handles, and each
+  // consumer level with what it uses. A group linked to one thing is centred on it.
+  if (!s.top) {
+    const first = (g) => Math.min(...g.ports.map((p) => s.ports.indexOf(p)));
+    let y = 0;
+    for (const g of [...s.areas].sort((a, b) => first(a) - first(b))) {
+      const e = reg.get(`a:${g.name}`);
+      e.style.top = `${y}px`;
+      g.y = y + e.offsetHeight / 2;
+      y += e.offsetHeight + 12;
+    }
+    const h = settle(s.ports.map((p) => ({ el: reg.get(`p:${p}`), want: avg(s.areas.filter((g) => g.ports.includes(p)).map((g) => g.y)) })), 6);
+    bodyOf("z-capability").style.height = `${Math.max(y, h)}px`;
+    bodyOf("z-interface").style.height = `${Math.max(y, h)}px`;
+    // A component without capabilities on this screen sits level with what calls it. Columns go
+    // left to right, so callers are already placed.
+    const capTop = mid(bodyOf("z-capability")).t;
+    for (const col of stage.querySelectorAll(".b-cols > .b-col")) {
+      const t = mid(col).t;
+      const items = [...col.children].map((e) => {
+        const inside = subtree(e.dataset.key.slice(2));
+        const served = s.areas.filter((g) => g.members.some((a) => handlers(a).some((x) => inside.includes(x))));
+        const callers = s.links.filter((b) => b.provider === inside[0] && s.boxes.includes(b.consumer)).map((b) => mid(reg.get(`b:${b.consumer}`)).y);
+        const want = served.length ? avg(served.map((g) => capTop + g.y)) : callers.length ? avg(callers) : t;
+        return { el: e, want: want - t };
+      });
+      col.style.height = `${settle(items, 14)}px`;
+    }
+  }
+  const targetsOf = (c) =>
+    unique(
+      s.top
+        ? boundaries.filter((b) => b.consumer === c && s.boxes.includes(b.provider)).map((b) => reg.get(`b:${b.provider}`))
+        : boundaries.filter((b) => b.consumer === c).flatMap((b) => b.interfaces).filter((i) => s.ports.includes(i)).map((i) => reg.get(`p:${i}`)),
     );
-  const canvas = document.querySelector(".canvas");
-  canvas.replaceChildren();
-  screen = route.focus
-    ? drawFocus(canvas, boundaryById.get(route.focus))
-    : drawLevel(canvas, frameOf(route));
-  document.querySelector(".scroll").scrollTo(0, 0);
-  refresh();
-  if (STILL) drawLegend(route);
+  const leftBody = bodyOf("b-left");
+  if (s.top) {
+    // Each provider and the consumers that use it form a row, centred on each other.
+    const col = stage.querySelector(".b-mid .b-col");
+    const firstUse = (c) => s.boxes.find((p) => boundaries.some((b) => b.consumer === c && b.provider === p));
+    const rows = [...s.boxes.map((p) => [reg.get(`b:${p}`), s.consumers.filter((c) => firstUse(c) === p)]), [null, s.consumers.filter((c) => !firstUse(c))]];
+    let y = 0;
+    for (const [pe, cs] of rows) {
+      const ces = cs.map((c) => reg.get(`b:${c}`));
+      const ph = pe?.offsetHeight ?? 0;
+      const ch = ces.reduce((n, e) => n + e.offsetHeight + 14, -14);
+      const rh = Math.max(ph, ch);
+      if (rh <= 0) continue;
+      if (pe) pe.style.top = `${y + (rh - ph) / 2}px`;
+      let cy = y + (rh - Math.max(ch, 0)) / 2;
+      for (const e of ces) {
+        e.style.top = `${cy}px`;
+        cy += e.offsetHeight + 14;
+      }
+      y += rh + 28;
+    }
+    col.style.height = leftBody.style.height = `${Math.max(0, y - 28)}px`;
+  } else {
+    const lt = mid(leftBody).t;
+    leftBody.style.height = `${settle(
+      s.consumers.map((c) => {
+        const to = targetsOf(c);
+        return { el: reg.get(`b:${c}`), want: (to.length ? avg(to.map((p) => mid(p).y)) : 0) - lt };
+      }),
+      14,
+    )}px`;
+  }
+  // What the open box uses is centred, as a block, on the open box's body.
+  // Each box to the right sits level with what calls it; the open box calls from its body's middle.
+  if (right) {
+    const body = right.querySelector(".b-zone-body");
+    const rt = mid(body).t;
+    const frameMid = mid(stage.querySelector(".b-body")).y;
+    const items = s.uses.map((u) => {
+      const ys = s.links.filter((b) => b.provider === u).map((b) => (b.consumer === openBox ? frameMid : mid(reg.get(`b:${b.consumer}`)).y));
+      return { el: reg.get(`b:${u}`), want: (ys.length ? avg(ys) : frameMid) - rt };
+    });
+    body.style.height = `${settle(items, 14)}px`;
+  }
+
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  const curve = (a, b) => {
+    const dx = Math.max(20, Math.abs(b[0] - a[0]) / 2);
+    return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`;
+  };
+  const wire = (from, to, a, b) => wires.append(svgEl("path", { d: curve(a, b), "data-from": from, "data-to": to }));
+  for (const c of s.consumers)
+    for (const t of targetsOf(c)) {
+      const from = mid(reg.get(`b:${c}`));
+      const to = mid(t);
+      wire(`b:${c}`, t.dataset.key, [from.r, from.y], [to.l - (s.top ? 0 : 4), to.y]);
+    }
+  for (const g of s.areas) {
+    const at = mid(reg.get(`a:${g.name}`));
+    for (const p of g.ports) {
+      const from = mid(reg.get(`p:${p}`));
+      wire(`p:${p}`, `a:${g.name}`, [from.r, from.y], [at.l, at.y]);
+    }
+  }
+  // Dependencies, from the right edge of a component, or of the open box, to what it depends on. A
+  // line that passes a column in between goes straight through the nearest gap between its boxes,
+  // so that it never seems to leave from a box it only passes behind.
+  const frameEl = stage.querySelector(".b-frame");
+  const cols = [...stage.querySelectorAll(".b-cols > .b-col")].map((c) => ({ ...mid(c), boxes: [...c.children].map(mid).sort((a, b) => a.t - b.t) }));
+  const colOf = (e) => cols.findIndex((c) => e.l >= c.l - 1 && e.r <= c.r + 1);
+  const gapAt = (c, want) => {
+    const gaps = [[-Infinity, c.boxes[0]?.t ?? Infinity], ...c.boxes.map((x, i) => [x.b, c.boxes[i + 1]?.t ?? Infinity])];
+    const ys = gaps.map(([lo, hi]) => (hi - lo < 40 ? (lo + hi) / 2 : Math.min(Math.max(want, lo + 12), hi - 12)));
+    return ys.reduce((best, y) => (Math.abs(y - want) < Math.abs(best - want) ? y : best));
+  };
+  for (const b of s.links) {
+    const own = b.consumer === openBox;
+    const from = mid(own ? frameEl : reg.get(`b:${b.consumer}`));
+    const to = mid(reg.get(`b:${b.provider}`));
+    const y = own ? Math.min(Math.max(to.y, from.t + 40), from.b - 20) : from.y;
+    const start = own ? -1 : colOf(from);
+    const end = colOf(to) === -1 ? cols.length : colOf(to);
+    let d = "";
+    let at = [from.r, y];
+    for (let k = start + 1; k < end && start !== -1; k++) {
+      const gy = gapAt(cols[k], at[1] + ((to.y - at[1]) * (cols[k].l - at[0])) / Math.max(1, to.l - at[0]));
+      d += `${d ? " " : ""}${curve(at, [cols[k].l - 10, gy])} L${cols[k].r + 10},${gy}`;
+      at = [cols[k].r + 10, gy];
+    }
+    wires.append(svgEl("path", { d: `${d}${d ? " " : ""}${curve(at, [to.l, to.y])}`, "data-from": `b:${b.consumer}`, "data-to": `b:${b.provider}` }));
+  }
+  paint(stage);
+  drawPanel();
+  if (selected && reg.has(selected)) reg.get(selected).scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (STILL) drawLegend(stage);
 }
 
-document.querySelector(".canvas").addEventListener("click", () => {
+function paint(stage) {
+  const keys = current?.keys;
+  for (const [key, e] of drawn) {
+    const on = Boolean(keys?.has(key));
+    e.classList.toggle("lit", on);
+    e.classList.toggle("chosen", key === selected);
+    e.classList.toggle("dim", Boolean(keys) && !on);
+  }
+  // A resource in a lit box is part of that box, so it does not fade; it is outlined only when it is
+  // linked to the selection. In the box of a selected resource, the other resources still fade.
+  if (keys)
+    for (const chip of stage.querySelectorAll(".b-chip.dim")) {
+      const box = chip.closest(".b-box");
+      if (!box?.classList.contains("lit")) continue;
+      if (selected.startsWith("r:") && box.querySelector(`[data-key="${CSS.escape(selected)}"]`)) continue;
+      chip.classList.remove("dim");
+    }
+  // A line lights when both its ends are; the open box counts as lit.
+  const end = (k) => keys.has(k) || k === `b:${openBox}`;
+  for (const p of stage.querySelectorAll(".b-wires path")) {
+    const on = Boolean(keys) && end(p.dataset.from) && keys.has(p.dataset.to);
+    p.classList.toggle("lit", on);
+    p.classList.toggle("dim", Boolean(keys) && !on);
+  }
+}
+
+// ---------- the panel: only what the map does not already show ----------
+
+function capabilityList(caps) {
+  return el(
+    "ul",
+    { class: "b-caps" },
+    caps.map((c) =>
+      el(
+        "li",
+        { class: selected === `c:${c.id}` ? "on" : "" },
+        el("button", { type: "button", onclick: pick(`c:${c.id}`) }, c.name),
+        el("span", {}, c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ")),
+      ),
+    ),
+  );
+}
+
+function panelOf(key) {
+  const s = screen;
+  const cut = key.indexOf(":");
+  const kind = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  const head = (k, cls, title) => [el("span", { class: `b-kind ${cls}` }, k), el("h2", {}, title)];
+  if (kind === "a") {
+    const g = s.areas.find((x) => x.name === id);
+    return [head(`Capabilities, ${g.type}`, "k-capability", g.name), text("p", g.members[0].description), capabilityList(g.capabilities)];
+  }
+  if (kind === "p") {
+    const b = incoming(s.through ?? openBox).find((x) => x.interfaces.includes(id));
+    return [head("Interface", "k-interface", id), text("p", interfaceText.get(id)), b && capabilityList(capabilitiesThrough(b, id))];
+  }
+  if (kind === "c") {
+    const c = capabilityById.get(id);
+    const g = s.areas.find((x) => x.members.includes(c.area));
+    return [
+      g && el("button", { type: "button", class: "b-back", onclick: pick(`a:${g.name}`) }, `‹ ${g.name}`),
+      head("Capability", "k-capability", c.name),
+      el("h3", {}, "Takes"),
+      el("p", {}, c.takes),
+      el("h3", {}, "Gives"),
+      el("p", {}, c.gives),
+    ];
+  }
+  if (kind === "r") {
+    const r = resourceByName.get(id);
+    const hidden = ownersOf(id).flatMap((k) => {
+      const at = [...s.owned].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Owned by ${k}, inside ${at}.`] : [];
+    });
+    return [
+      head("Resource", "k-resource", id),
+      text("p", r.description),
+      hidden.map((t) => el("p", { class: "b-note" }, t)),
+      r.properties?.length > 0 && [el("h3", {}, "Properties"), el("ul", { class: "b-props" }, r.properties.map((x) => el("li", {}, x)))],
+      el("h3", {}, "Capabilities that act on it"),
+      // Two consumers may have the same capability, such as Start a run; list it once.
+      capabilityList(actingOn(id).filter((c, i, all) => all.findIndex((o) => o.name === c.name) === i)),
+    ];
+  }
+  const n = node(id);
+  return [
+    head(KIND_WORD[n.kind], kindClass(id), n.name),
+    n.description && [n.kind === "consumer" ? null : el("h3", {}, "Responsibilities"), text("p", n.description)],
+    opens(id) && id !== openBox && el("button", { type: "button", class: "b-go wide", onclick: () => go(id) }, el("span", {}, `Open ${id}`), el("span", {}, "›")),
+  ];
+}
+
+function drawPanel() {
+  const panel = document.getElementById("panel");
+  panel.hidden = !selected;
+  if (!selected) return;
+  panel.replaceChildren(
+    el("button", { type: "button", class: "b-close", "aria-label": "Close", onclick: clear }, "×"),
+    ...[panelOf(selected)].flat(3).filter(Boolean),
+  );
+}
+
+function clear() {
+  if (!selected) return;
   selected = null;
-  refresh();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || !selected) return;
-  selected = null;
-  refresh();
-});
-window.addEventListener("hashchange", render);
-document.fonts.ready.then(render);
+  render();
+}
+
+// ---------- where you are ----------
+
+function drawNav() {
+  const crumbs = [["All providers", 0], ...trail.map((n, i) => [n, i + 1])];
+  document.getElementById("nav").replaceChildren(
+    el("button", { type: "button", class: "b-back-nav", disabled: !visited.length && !trail.length ? "" : null, onclick: back }, "‹ Back"),
+    ...crumbs
+      .flatMap(([label, depth], i) => [
+        i > 0 && el("span", { class: "b-sep" }, "›"),
+        i === crumbs.length - 1 ? el("strong", {}, label) : el("button", { type: "button", onclick: () => navigate(trail.slice(0, depth)) }, label),
+      ])
+      .filter(Boolean),
+  );
+}
+
+// The path to a box when nothing says how you came: its parents, or, for an outside service, the
+// screen that shows a component calling it.
+function trailFor(name) {
+  if (name === TOP) return [];
+  const n = node(name);
+  if (n.kind !== "outside") return [...ancestors(name), name];
+  const caller = boundaries.find((b) => b.provider === name && !refinedBy(b) && nodes.has(b.consumer) && node(b.consumer).kind !== "consumer");
+  if (!caller) return [name];
+  const at = node(caller.consumer).parent;
+  return [...trailFor(at ?? caller.consumer), name];
+}
+
+// Opening a box from the screen it is on adds it to the path you came by; a box elsewhere gets the
+// path trailFor gives it.
+function go(name) {
+  if (name === TOP) return navigate([]);
+  const i = trail.indexOf(name);
+  if (i >= 0) return navigate(trail.slice(0, i + 1));
+  navigate(screen.visible.has(name) || screen.boxes.includes(name) ? [...trail, name] : trailFor(name));
+}
+
+// Back returns to the previous screen as it was left: same scroll, same selection.
+function back() {
+  if (visited.length) navigate(visited.pop(), { remember: false, restore: true });
+  else if (trail.length) navigate(trail.slice(0, -1), { remember: false, restore: true });
+}
+
+// Changes screen. Opening a box grows it into the new screen's frame; going back shrinks the frame
+// into the box it came from. Everything else fades.
+const addressOf = (t) => `#${t.length ? t.map(slugOf).join("/") : "all"}`;
+function navigate(next, { remember = true, fromAddress = false, restore = false } = {}) {
+  const before = trail;
+  if (before.length === next.length && before.every((x, i) => x === next[i])) return;
+  if (remember) visited.push(before);
+  const scroller = document.getElementById("scroll");
+  memory.set(addressOf(before), { left: scroller.scrollLeft, top: scroller.scrollTop, selected });
+  const kept = restore ? memory.get(addressOf(next)) : null;
+  const deeper = next.length > before.length && before.every((x, i) => next[i] === x);
+  const shallower = before.length > next.length && next.every((x, i) => before[i] === x);
+  const frameEl = () => document.querySelector(".b-frame");
+  // Only one element may carry the name at a time; the last landing still has it.
+  for (const e of document.querySelectorAll(".b-frame, .b-box")) e.style.viewTransitionName = "";
+  const grow = deeper ? reg.get(`b:${next[before.length]}`) : shallower ? frameEl() : null;
+  if (grow) grow.style.viewTransitionName = "zoom";
+  // A box on both screens travels from its place on this one to its place on the next, such as a
+  // component that moves from Components to Used by when a component it calls opens.
+  const nextOpen = next.at(-1) ?? TOP;
+  const nextVisible = screenOf(nextOpen).visible;
+  const travellers = [...screen.visible].filter((n) => n !== nextOpen && nextVisible.has(n));
+  const travel = () => {
+    for (const n of travellers) {
+      const e = reg.get(`b:${n}`);
+      if (e) e.style.viewTransitionName = `b-${cssName(n)}`;
+    }
+  };
+  travel();
+  if (!fromAddress) {
+    const hash = addressOf(next);
+    // A sandboxed viewer may refuse to change the address; the screen changes all the same.
+    try {
+      if (location.hash !== hash) history.pushState(null, "", hash);
+    } catch {}
+  }
+  transition(() => {
+    trail = next;
+    openBox = next.at(-1) ?? TOP;
+    selected = kept?.selected ?? null;
+    render();
+    scroller.scrollTo(kept?.left ?? 0, kept?.top ?? 0);
+    const landing = deeper ? frameEl() : shallower ? reg.get(`b:${before[next.length]}`) : null;
+    if (grow && landing) landing.style.viewTransitionName = "zoom";
+    travel();
+  });
+}
+
+function fromHash() {
+  const parts = location.hash.slice(1).split("/").filter(Boolean);
+  if (parts[0] === "all") return [];
+  const names = parts.map((p) => bySlug.get(p));
+  if (!names.length || names.some((n) => !n)) return HOME;
+  return names.length === 1 ? trailFor(names[0]) : names;
+}
+
+// ---------- still images ----------
+
+// Every screen once: All providers, then each box that opens, in the order the map lists them.
+const screens = () => [[], ...[...nodes.keys()].filter(opens).map(trailFor)];
+
+// A still image cannot be clicked, so it carries under the drawing what the panel would say about
+// what the screen shows.
+function legendOf(s) {
+  const entry = (name, about) => el("li", { html: inline(`**${name}**: ${sentence(about ?? "")}`) });
+  const section = (title, about, items) =>
+    items.length > 0 && el("section", {}, el("h3", {}, title), about && text("p", about), el("ul", {}, items));
+  const acts = (c) => c.acts.map((a) => `${MODE_WORD[a.mode]} ${a.resource}`).join(", ");
+  return el(
+    "div",
+    { class: "b-legend" },
+    section("On this screen", null, [...s.consumers, ...s.boxes, ...s.uses].map((n) => entry(n, node(n).description))),
+    section("Interfaces", null, s.ports.map((p) => entry(p, interfaceText.get(p)))),
+    s.areas.map((g) =>
+      section(
+        `${g.name} (${g.type})`,
+        g.members[0].description,
+        g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
+      ),
+    ),
+    section("Resources", null, unique([...s.owned.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+  );
+}
+
+// Writes the size the image needs, and the addresses of every screen, on the page for shoot-map.mjs.
+function drawLegend(stage) {
+  const legend = legendOf(screen);
+  legend.style.width = `${Math.max(stage.offsetWidth, 1200)}px`;
+  document.querySelector(".b-legend")?.remove();
+  document.querySelector("main").after(legend);
+  const right = Math.max(stage.getBoundingClientRect().right, legend.getBoundingClientRect().right) + 16;
+  const bottom = legend.getBoundingClientRect().bottom + window.scrollY;
+  document.documentElement.dataset.stillSize = `${Math.ceil(right)}x${Math.ceil(bottom)}`;
+  document.documentElement.dataset.screens = screens().map(addressOf).join(" ");
+}
+
+const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+window.addEventListener("popstate", () => navigate(fromHash(), { fromAddress: true, remember: false, restore: true }));
+document.getElementById("scroll").addEventListener("click", clear);
+document.addEventListener("keydown", (e) => e.key === "Escape" && clear());
+window.addEventListener("resize", () => render());
+trail = fromHash();
+openBox = trail.at(-1) ?? TOP;
+render();
+document.fonts?.ready.then(render);

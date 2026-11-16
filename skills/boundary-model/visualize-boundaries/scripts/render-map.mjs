@@ -21,7 +21,7 @@ if (problems.length) {
 }
 
 const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-const title = escapeHtml(`${map.system || "System"} boundary map`);
+const title = escapeHtml(`${map.system.name} boundary map`);
 const css = readFileSync(join(here, "page.css"), "utf8");
 const js = readFileSync(join(here, "page.js"), "utf8");
 const data = JSON.stringify(map).replace(/</g, "\\u003c");
@@ -39,11 +39,12 @@ const page = `<!doctype html>
 ${css}</style>
 </head>
 <body>
-<header class="bar"><span class="map-name">${title}</span>${map.revision ? `<span class="revision">${map.revision}</span>` : ""}</header>
-<div class="layout">
-<section class="stage"><nav class="heading"></nav><div class="scroll"><div class="canvas"></div></div></section>
-<aside class="panel"></aside>
-</div>
+<header class="top">
+<h1>${title}</h1><span class="rev">${escapeHtml(map.system.revision.slice(0, 7))}</span>
+<p>Click anything to light what it connects to. Open, at the foot of a box, goes inside.</p>
+</header>
+<nav id="nav" aria-label="Where you are"></nav>
+<main><div id="scroll"></div><aside id="panel" hidden></aside></main>
 <script type="application/json" id="map-data">${data}</script>
 <script>
 ${js}</script>
@@ -54,10 +55,9 @@ ${js}</script>
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, page);
 
-const nodes = Object.values(map.nodes);
-const count = (kind) => nodes.filter((n) => n.kind === kind).length;
+const inside = (c) => (c.components ?? []).flatMap((k) => [k, ...inside(k)]);
 console.log(
-  `Wrote ${outPath}: ${count("consumer")} consumers, ${count("system")} providers, ` +
-    `${count("component")} components, ${count("outside")} outside services, ` +
-    `${Object.keys(map.resources).length} resources, ${map.boundaries.length} boundaries.`,
+  `Wrote ${outPath}: ${map.consumers.length} consumers, ${map.providers.length} providers, ` +
+    `${map.providers.flatMap(inside).length} components, ${map.outsideServices.length} outside services, ` +
+    `${map.resources.length} resources, ${map.boundaries.length} boundaries.`,
 );

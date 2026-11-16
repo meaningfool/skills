@@ -15,7 +15,7 @@ A map is finished when a person has reviewed it. Code settles what exists; only 
 
 ## Prepare a level
 
-1. Draw the draft with `render-map.mjs` from the `visualize-boundaries` skill, then run `node <that skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. Each level gets a folder with an overview and one image per boundary. Every image carries the definitions of what it shows, so nobody needs to open the page.
+1. Draw the draft with `render-map.mjs` from the `visualize-boundaries` skill, then run `node <that skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. It writes one image of All providers and one of each box that opens, each named by its level and the path to it. Every image carries the definitions of what it shows, so nobody needs to open the page.
 2. Before asking anything, check the level against the code, and against the project's plans and vocabulary. A question you can settle by reading is not a question.
 3. Look for what a person would stumble on:
    - **Names** that the code, the product or the plans do not use, and the same word used for different things.
@@ -30,7 +30,7 @@ A map is finished when a person has reviewed it. Code settles what exists; only 
 
 Go from the top down, one level at a time. In an update, show only the levels the changes reach.
 
-1. Send the images first: the overview, then the boundaries with something to decide or to read closely. Add a link to the page as an extra, never as the only way to see the map.
+1. Send the images first: the screens of the level, starting with those that have something to decide or to read closely. Add a link to the page as an extra, never as the only way to see the map.
 2. Ask at most five questions. Each one gives the choice in plain words, the fact behind it, and your suggestion.
 3. List what stays unless they object. Say which choices already match an earlier review.
 4. Keep the text short: they are reading the images. Then stop and wait.

@@ -1,15 +1,7 @@
-// Check a boundary map against boundary-map.schema.json and against its own cross-references,
-// then turn it into the data the page draws.
+// Check a boundary map against boundary-map.schema.json and against its own cross-references.
 import { readFileSync } from "node:fs";
 
 const schema = JSON.parse(readFileSync(new URL("../boundary-map.schema.json", import.meta.url), "utf8"));
-
-const slug = (s) =>
-  s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "");
 
 // The part of JSON Schema that boundary-map.schema.json uses.
 function checkShape(value, rule, path, problems) {
@@ -127,85 +119,11 @@ function checkReferences(file, problems) {
   }
 }
 
-// The data page.js draws, keyed by ids made from the names.
-function toPage(file) {
-  const nodes = {};
-  const add = (name, fields) => (nodes[slug(name)] = { name, ...fields });
-  for (const b of file.boundaries)
-    if (file.consumers.some((c) => c.name === b.consumer))
-      add(b.consumer, { kind: "consumer", description: file.consumers.find((c) => c.name === b.consumer).description });
-  const addComponent = (c, parent) => {
-    const opened = Boolean(c.components?.length);
-    add(c.name, {
-      kind: parent ? "component" : "system",
-      description: c.description,
-      ...(parent && { parent: slug(parent) }),
-      opened,
-      hasInside: opened,
-      parts: c.parts.map((p) => `${p.name}: ${p.why}`),
-      resources: c.resources.map(slug),
-    });
-    for (const inner of c.components ?? []) addComponent(inner, c.name);
-  };
-  for (const p of file.providers) addComponent(p, null);
-  for (const s of file.outsideServices)
-    add(s.name, { kind: "outside", description: s.description, resources: s.resources.map(slug) });
-  for (const { component } of file.providers.flatMap((p) => allComponents(p)))
-    for (const shared of component.sharedComponents ?? [])
-      (nodes[slug(shared.name)].alsoIn ||= []).push(slug(component.name));
-
-  const depth = (id) => (nodes[id]?.parent ? depth(nodes[id].parent) + 1 : 1);
-  const resources = {};
-  for (const r of file.resources) {
-    const id = slug(r.name);
-    const keepers = Object.keys(nodes).filter((n) => nodes[n].resources?.includes(id));
-    const owner = keepers.reduce((a, b) => (depth(b) > depth(a) ? b : a), keepers[0]);
-    resources[id] = { owner, name: r.name, definition: r.description, properties: r.properties ?? [] };
-  }
-
-  const interfaceText = new Map(file.interfaces.map((i) => [i.name, i.description]));
-  const boundaries = file.boundaries.map((b) => {
-    const consumer = slug(b.consumer);
-    const parent = nodes[consumer].parent;
-    return {
-      id: `${consumer}-${slug(b.provider)}`,
-      consumer,
-      provider: slug(b.provider),
-      ...(parent && { inside: parent }),
-      interfaces: Object.fromEntries(b.interfaces.map((n) => [slug(n), n])),
-      interfaceDetails: Object.fromEntries(b.interfaces.map((n) => [slug(n), interfaceText.get(n)])),
-      areas: b.areas.map((a) => ({
-        id: slug(a.name),
-        name: a.name,
-        type: a.type,
-        description: a.description,
-        capabilities: a.capabilities.map((c) => ({
-          name: c.name,
-          takes: c.takes,
-          gives: c.gives,
-          via: (c.interfaces ?? b.interfaces).map(slug),
-          on: c.acts.map(({ mode, resource }) => [slug(resource), mode]),
-        })),
-      })),
-      evidence: b.evidence.map((e) => [e.path, e.shows]),
-    };
-  });
-
-  return {
-    system: file.system.name,
-    systemDescription: file.system.description,
-    revision: file.system.revision.slice(0, 7),
-    nodes,
-    resources,
-    boundaries,
-  };
-}
-
-// Gives the page's data, or the problems that keep the map from being drawn.
+// Gives the map, or the problems that keep it from being drawn.
 export function readMap(text) {
   const file = JSON.parse(text);
   const problems = [];
   checkShape(file, schema, "map", problems);
   if (!problems.length) checkReferences(file, problems);
-  return problems.length ? { problems } : { problems, map: toPage(file) };
+  return problems.length ? { problems } : { problems, map: file };
 }
