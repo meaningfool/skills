@@ -10,13 +10,14 @@ Help the user compare viable slicing strategies for a change.
 ## What to do
 
 - Use the user's input: the conversation and/or a designated planning file as the starting point.
-- Present 2-3 distinct slicing strategies. Always include at least one vertical strategy. Keep only options that differ in how they divide the work, not merely in ordering or bundle size.
+- Present 2-3 distinct slicing strategies. Always include at least one vertical strategy, made of vertical slices. Keep only options that differ in how they divide the work, not merely in ordering or bundle size.
 - When the change is described as boundary changes, slice along them: each slice implements whole boundary changes, and describe each slice with the `boundary model` defined in the `use-boundary-model` skill. Split a boundary change only when it is too large, by its capabilities, resources, or interfaces, and say so.
 - Name any slicing smells present in each option and explain what causes them.
 - Compare the tradeoff the user is choosing, and end with a recommendation.
 
 ## Vocabulary
 
+- **Vertical slice**: a slice that a consumer can use from end to end, through every part of the system it needs, rather than one part of the system at a time.
 - **Enabling slice**: establishes or changes an internal boundary, routes current behavior through it, and proves that external behavior stays the same. Watch for infrastructure that has no immediate consumer.
 - **Parallel change**: expands the contract to support the old and new forms, migrates consumers, then removes the old form. Use it when a contract or persisted representation cannot change for every consumer at once.
 - Slicing smells, a reason to question a strategy, not an automatic rejection:
