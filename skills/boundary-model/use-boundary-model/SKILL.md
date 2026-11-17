@@ -1,6 +1,6 @@
 ---
 name: use-boundary-model
-description: Describe a system as its consumers see it — who uses it, for what, through which interfaces — kept apart from how it is built, and record it in a boundary map with a format and a checker. Use when defining, shaping, extracting, reviewing or checking boundaries or a boundary map.
+description: Describe a system as its consumers see it — who uses it, for what, through which interfaces — kept apart from how it is built. Use when defining, shaping, extracting or reviewing boundaries.
 ---
 
 # Use Boundary Model
@@ -29,7 +29,7 @@ Related concepts:
 
 - Give everything a consumer can see or do a place in a boundary, without turning behind-the-scenes behavior into extra boundaries or capabilities.
 - Keep a resource or a capability only if removing it would make the boundary lose important meaning.
-- Include every tool or app someone uses to get something done with what the system offers, internal ones included, such as the back-office tool staff use to edit the catalog. Leave out what works on the system itself rather than with it: tools that set it up, build, check, deploy, or migrate it, direct reads of its storage or diagnostics, and machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
+- Include every tool or app someone uses to get something done with what the system offers, internal ones included, such as a staff tool for writing and trying the product's content. Leave out what works on the system itself rather than with it: tools that set it up, build, check, deploy, or migrate it, direct reads of its storage or diagnostics, and machinery nobody uses for a purpose of their own, such as health checks, clean-up jobs, or routing.
 - Several models are usually possible: prefer the simplest.
 - Ground your modelling in the stories of how external consumers use the system. Don't assume or invent.
 - Use plain language, in the consumer's own words.
@@ -79,7 +79,7 @@ Shopper <-> Store                                              Level 1
           Score payment: observes Charge
 ```
 
-- List under each provider the resources it keeps, each once, and reference them from every boundary that uses them. Note where a consumer sees one differently.
+- List each resource once per provider, under one name, and reference it from every boundary that uses it. Note where a consumer sees it differently.
 - Under each area, give every capability the resources it works on, each with its mode (see Output). One capability can work on several resources, and one resource can serve several capabilities.
 - Put an interface in brackets after a capability that only that interface offers.
 - Under `Inside <Provider>`, list its components with their responsibility and the areas of the level above they serve, then its boundaries. Keep names identical across levels.
@@ -87,16 +87,16 @@ Shopper <-> Store                                              Level 1
 ## Boundary map
 
 - **Definition**: A boundary map records a system's current boundaries, at every level. A system has one map, and it describes one revision of the code. A planned change does not belong in it.
-- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence. Only a review by a person writes a map there, so what the map at its location says has been reviewed.
+- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence.
 - **Format**: one JSON file, described in [references/map-format.md](references/map-format.md) with its schema, [assets/boundary-map.schema.json](assets/boundary-map.schema.json). Check a map with `node <this skill's folder>/scripts/check-map.mjs <map.json>`; it needs Node 18 or later.
 - **Working folder**: a skill that works on a map keeps its working files in a folder outside the repository: the folder the caller names, otherwise the project's scratch location when its instructions name one, otherwise a temporary folder.
 
 | Skill | What it does with the map |
 | --- | --- |
 | `extract-boundaries` | Writes it from the repository. It asks before replacing an existing map, which may hold decisions made by hand |
-| `review-boundaries` | Walks a person through it, from the top down, and writes the reviewed map at its location |
+| `review-boundaries` | Walks a person through it, level by level, and writes the reviewed map at its location |
 | `update-boundaries` | Brings it up to date with what changed since its revision |
-| `visualize-boundaries` | Draws it as a page or as still images |
+| `visualize-boundaries` | Checks it and draws it as a page or as still images |
 | `shape-boundaries` | Starts from it: marks each change NEW, MODIFIED or REMOVED against it, and keeps its names |
 
 ## Guidelines per concept
@@ -142,8 +142,8 @@ Example:
 - Check that it is not really a property of another resource, a representation, internal or debug state, a credential used only to get access to something else, a setting or limit, the record a capability leaves behind, or a stream with no state of its own.
 - Watch for REST/API/database drift: in this model, resources are consumer-recognized concepts, not necessarily endpoints, records, tables, or persisted objects.
 - Keep the parts of a resource inside it, such as an order's lines or a document's revisions, unless the consumer finds, opens, or acts on them separately; then they form a resource of their own.
-- A provider keeps a resource when it holds that resource's state, itself or through a component inside it. It offers capabilities only on resources it keeps.
-- Several providers can keep the same resource: give it the same name in each. Each holds its own state for it, since two parts that change the same records form one component. Payments keeps charges, and so does Fraud check, which keeps its own record of the charges it scored.
+- A provider keeps a resource when it holds that resource's state, itself or through a component inside it.
+- Several providers can keep the same resource under one name, each holding its own state for it: Payments keeps charges, and so does Fraud check, which keeps its own record of the charges it scored.
 
 Examples:
 
@@ -174,13 +174,13 @@ Examples:
 
 ### Area
 
-- Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, gift cards, or settings, in supporting areas. In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas.
+- Give each boundary one core area, holding what the consumer comes for. Put what they would skip if they could, such as account and access, credits, or settings, in supporting areas. In a store, browsing and ordering form the core area; sign-in, saved cards, and the loyalty balance are supporting areas.
 - Name an area with a verb, in the imperative, after what the consumer comes to do: Shop, not Shopping or Catalog and order management. When an area holds one capability, give both the same name.
 
 ### Interface
 
 - It is clearly identifiable by its user (the consumer).
-- It belongs to one provider. Several consumers of that provider can use it, each for the capabilities of its own boundary: a customer's script and a partner app can use the same public API for different things.
+- It belongs to one provider, and several of its consumers can use it for different capabilities: a customer's script and a partner app can share one public API.
 - It is a channel or product surface where interactions happen, not every screen or widget inside that channel. A partner API may be an interface; one endpoint is usually an interaction surface, not a separate interface.
 - It is not merely implementation plumbing. A database table, repository adapter, backend module, or server function is not an interface unless the consumer directly invokes that thing as the access surface.
 - A client that only presents or relays the provider's capabilities, such as a thin CLI, is part of an interface, not a provider.

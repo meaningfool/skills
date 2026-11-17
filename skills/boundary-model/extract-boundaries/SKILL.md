@@ -72,12 +72,3 @@ Work in rounds, one level at a time: each round searches for the evidence its de
    - Every evidence path is an existing file: check each one from the repository root, for example with `test -f <path>`.
    - The map passes the checks of the format: run `node <the use-boundary-model skill's folder>/scripts/check-map.mjs <working folder>/map.json` and fix each problem it lists.
 7. **Review.** Use `review-boundaries` with the whole map as its scope; it writes the map at the output path when the person is done. When no person can review it, leave the map in the working folder, give its path, and say it is unreviewed; write it at the output path only when the caller named that path.
-
-## Output format
-
-Write the map in the format of `references/map-format.md` in `use-boundary-model`, with these choices of extraction:
-
-- Open a provider in the map exactly as the method opened it: list its components, and its other parts in `parts`.
-- Give every boundary the evidence its decisions rest on: files, not line ranges.
-- Write `places` for every source file of the corpus, as the checks require.
-- Record the source revision in `system.revision`, or `unknown` when the corpus has none.

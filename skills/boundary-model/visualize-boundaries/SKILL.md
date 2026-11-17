@@ -1,6 +1,6 @@
 ---
 name: visualize-boundaries
-description: Draw a boundary map JSON file as one HTML page for review, one open box at a time, with who uses it, its interfaces, capabilities, components, resources and what it uses. Use when someone wants to see or review a boundary map, whenever it was made.
+description: Check a boundary map JSON file and draw it as one HTML page for review, one open box at a time, with who uses it, its interfaces, capabilities, components, resources and what it uses. Use when someone wants to see or review a boundary map, whenever it was made.
 ---
 
 # Visualize boundaries
@@ -12,9 +12,9 @@ Turn one boundary map into one self-contained HTML page, and into still images f
 1. Take the map's path from the caller, or use the location in `use-boundary-model`. Take the page's path from the caller too; without one, write the page outside the repository, in the project's scratch location when its instructions name one, otherwise in a temporary folder.
 2. Run `node <this skill's folder>/scripts/render-map.mjs <map.json> <page.html>`. It needs Node 18 or later, and the `use-boundary-model` skill installed beside this one: it checks the map with that skill's checker before drawing it.
 3. Open the page in a browser. It works from a file; its fonts load from Google Fonts when online.
-4. Report the counts the script printed, to show the whole map was read, and how far the map is behind the main branch when it says so. It says so when the map's revision is in the repository it runs in, or in the one holding the map; the page shows it next to the revision.
+4. Report the counts the script printed, to show the whole map was read, and how far the map is behind the main branch when it says so.
 
-If the script lists problems, it writes no page. Each one is a place where the map breaks the format, or where two names would give their boxes the same address, such as "Check in" and "Check-in": fix the map, not the page. Without a map, it says so: `extract-boundaries` makes one from a repository.
+If the script lists problems, it writes no page. Each one is a place where the map breaks the format or names something it does not define: fix the map, not the page.
 
 For still images, run `node <this skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. It writes one image of All providers and one of each box that opens, each named by how deep its screen is and the path to it, such as `2-store--payments.png`. Under the drawing, each image gives the descriptions of what it shows. It needs Chrome, Chromium, or Edge; without one it gives the address to start from.
 

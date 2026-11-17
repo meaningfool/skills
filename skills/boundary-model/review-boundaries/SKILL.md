@@ -1,6 +1,6 @@
 ---
 name: review-boundaries
-description: Walk a person through a boundary map from the top down, with still images and short questions, and apply what they decide. Use after extracting or updating a map, or when someone wants a map reviewed.
+description: Walk a person through a boundary map level by level, with still images and short questions, and apply what they decide. Use after extracting or updating a map, or when someone wants a map reviewed.
 ---
 
 # Review boundaries

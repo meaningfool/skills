@@ -12,7 +12,7 @@ Settle the details of a change until it can be implemented without guessing. For
 - **Expected behavior**: what a consumer can observe once the change works, one falsifiable statement each.
 - **Design decision**: a chosen or rejected path that shapes how that behavior is built.
 
-When the change is described as boundary changes, refine each one with the `boundary model` defined in the `use-boundary-model` skill: a capability's output is usually an expected behavior. What a boundary change needs inside its provider, such as a new component, a new outside service, or a change in which component handles an area, is a design decision: write it in the model's notation, under `Inside <Provider>`, marking each change NEW, MODIFIED, or REMOVED.
+When the change is described as boundary changes, refine each one with the `boundary model` defined in the `use-boundary-model` skill: a capability's output is usually an expected behavior.
 
 ## What to do
 

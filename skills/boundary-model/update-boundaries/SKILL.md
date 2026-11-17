@@ -16,7 +16,7 @@ The map describes one reviewed revision. An update moves it to a later one by lo
 
 ## Method
 
-1. **List the changes.** From the repository root, run `node <this skill's folder>/scripts/find-delta.mjs <map> [<target>]` and save its report in the working folder. Without a target it compares with the head of the main branch. When the map's revision is unknown or is not in the repository, it stops: say so, and suggest a full extraction instead. It sorts every changed file by the place the map gives it, and lists the boundaries touched directly, those a change inside could reach, and those with nothing changed.
+1. **List the changes.** From the repository root, run `node <this skill's folder>/scripts/find-delta.mjs <map> [<target>]` and save its report in the working folder. When the map's revision is unknown or is not in the repository, it stops: say so, and suggest a full extraction instead. It sorts every changed file by the place the map gives it, and lists the boundaries touched directly, those a change inside could reach, and those with nothing changed.
 2. **Read why things changed.** For each commit, read its message. For each merged pull request, read its description, its issue, and the plans and documents it changed. These tell you what to look for; the code decides what exists.
 3. **Work out the delta.** Go through the boundaries touched directly, then those a change could reach. Read the changed code against the map, and write each difference in `delta.md` in the working folder, marked NEW, MODIFIED, or REMOVED, for any consumer, provider, component, interface, area, capability, or resource. Leave boundaries with nothing changed alone.
 4. **Settle the rest of the report.**

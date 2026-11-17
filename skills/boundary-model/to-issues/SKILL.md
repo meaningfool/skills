@@ -101,11 +101,11 @@ Confirm that each item below is available and works before implementing. If one 
 
 ## Type
 
-Choose the type from `Before Starting` and `Proof of Done`. `AFK` (away from keyboard) means the agent needs no person; `HITL` (human in the loop) means a person takes part:
+Choose the type from `Before Starting` and `Proof of Done`:
 
 - `AFK`: the agent has everything listed under `Before Starting` and can run the proof itself.
 - `HITL INPUT`: a person must first provide something listed under `Before Starting`: access, setup, a credential, or a decision.
-- `HITL VERIF`: the agent can implement, but a person must run or observe the proof (e.g. the proof needs a physical device the agent cannot use).
+- `HITL VERIF`: the agent can implement, but a person must run or observe the proof (e.g. the agent cannot access the microphone).
 - `HITL INPUT+VERIF`: both.
 
 ## Expected Behavior

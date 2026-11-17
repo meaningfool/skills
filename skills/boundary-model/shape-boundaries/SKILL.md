@@ -7,7 +7,7 @@ description: Express an expected change as the boundary changes it leads to, wit
 
 ## Goal
 
-Express the change the user wants as the boundary changes it leads to, with the `boundary model` from the `use-boundary-model` skill: every boundary, resource, capability, and interface it adds, modifies, or removes, on the boundaries the change is about, whatever their level. What changes inside their providers to deliver it, such as a new component, a new outside service, or which component handles an area, is a design decision for refinement: list it under `Details`. Clarify consumers, providers, interactions, interfaces, resources, and capabilities only as needed for that purpose.
+Express the change the user wants as the boundary changes it leads to, with the `boundary model` from the `use-boundary-model` skill: every boundary, resource, capability, and interface it adds, modifies, or removes, on the boundaries the change is about. List what changes inside their providers, such as a new component, under `Details`, for refinement. Clarify consumers, providers, interactions, interfaces, resources, and capabilities only as needed for that purpose.
 
 Interview the user until no open question could add, remove, or redefine a boundary change. Then give the shape and ask the user to confirm it. Leave how to group or order the changes to slicing, and the details of each change to refinement.
 
@@ -54,7 +54,7 @@ Resources of [Provider]:
 **[Consumer] <-> [Provider]**: [NEW|MODIFIED|REMOVED], [one-sentence description of the change]
 
 - Interfaces: [interface] · [interface], each marked NEW or REMOVED when it changes
-- [NEW|MODIFIED|REMOVED, when it changes] [Area] (core|supporting)
+- [Area] (core|supporting)
   - [NEW|MODIFIED|REMOVED] [Capability]: [mode] **[Resource]** · [mode] **[Resource]** [interface, when only one offers it]
 
 **Shape complete: [YES|NO]**
@@ -73,4 +73,3 @@ Resources of [Provider]:
 - Use the planning document designated by the user. If none is designated, ask which file should record the decisions, following the target repository's documentation conventions.
 - Record the confirmed shape with its `Details` list, which refinement starts from.
 - Record relevant design decisions even when they do not alter the boundary model.
-- Leave the boundary map as it is: it describes the code as it stands. Once the change lands, `update-boundaries` brings it up to date.
