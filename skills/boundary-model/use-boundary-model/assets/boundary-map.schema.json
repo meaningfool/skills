@@ -137,7 +137,7 @@
       }
     },
     "place": {
-      "description": "Where source files sit, so a later change can be traced to what it touches. A file belongs to the place whose matching path is the most specific; a pattern across folders, such as **/*.test.*, comes first.",
+      "description": "Where source files sit, so a later change can be traced to what it touches. A file belongs to the place whose matching path is the most specific, with the longest fixed start before any *; a pattern across folders, such as **/*.test.*, comes first.",
       "type": "object",
       "additionalProperties": false,
       "required": ["place", "kind", "paths"],

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Check a boundary map against boundary-map.schema.json, against its own cross-references, and
 // against the rules of the model that a script can test.
-// Usage: node check-map.mjs <map.json>
+// With --places, run from the repository root, it also lists the tracked files no place matches.
+// Usage: node check-map.mjs <map.json> [--places]
+import { execFileSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -161,6 +163,28 @@ export function loadMap(path) {
   }
 }
 
+function matcher(glob) {
+  const source = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*\//g, "\u0000")
+    .replace(/\*\*/g, "\u0001")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\u0000/g, "(?:.*/)?")
+    .replace(/\u0001/g, ".*");
+  return new RegExp(`^${source}$`);
+}
+// A pattern across folders, such as tests, comes first. Otherwise the longer a path's fixed
+// start, the more specific it is, and a file pattern outranks a folder.
+const weightOf = (glob) =>
+  glob.slice(0, -3).includes("**") ? Infinity : glob.split("*")[0].length + (glob.endsWith("/**") ? 0 : 0.5);
+// The place a file belongs to, or undefined.
+export function placesOf(map) {
+  const paths = map.places.flatMap((place) =>
+    place.paths.map((glob) => ({ place, test: matcher(glob), weight: weightOf(glob) })),
+  );
+  return (file) => paths.filter((p) => p.test.test(file)).sort((a, b) => b.weight - a.weight)[0]?.place;
+}
+
 const inside = (c) => (c.components ?? []).flatMap((k) => [k, ...inside(k)]);
 export const countsOf = (map) =>
   `${map.consumers.length} consumers, ${map.providers.length} providers, ` +
@@ -168,9 +192,11 @@ export const countsOf = (map) =>
   `${map.resources.length} resources, ${map.boundaries.length} boundaries`;
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
-  const [mapPath] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const withPlaces = args.includes("--places");
+  const [mapPath] = args.filter((a) => a !== "--places");
   if (!mapPath) {
-    console.error("Usage: node check-map.mjs <map.json>");
+    console.error("Usage: node check-map.mjs <map.json> [--places]");
     process.exit(1);
   }
   const { map, problems } = loadMap(mapPath);
@@ -179,4 +205,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.a
     process.exit(1);
   }
   console.log(`${mapPath} passes: ${countsOf(map)}.`);
+  if (withPlaces) {
+    const placeOf = placesOf(map);
+    const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8", maxBuffer: 2 ** 28 })
+      .split("\0")
+      .filter(Boolean);
+    const unplaced = files.filter((file) => !placeOf(file));
+    if (unplaced.length) {
+      console.error(`${unplaced.length} of ${files.length} tracked files have no place:\n  ${unplaced.join("\n  ")}`);
+      process.exit(1);
+    }
+    console.log(`All ${files.length} tracked files have a place.`);
+  }
 }

@@ -41,11 +41,11 @@ Write one JSON map of a system's current boundaries at the output path, using th
 - Ask readers for facts, such as routes, screens, commands, stored records, and the calls between parts, not for the names you expect to find: a brief that suggests names steers what readers report. When a reader reports a contract, an interface, a check, or a registry, it quotes the type, signature, or rule with its path.
 - Read the **deciding files** yourself: architecture and boundary checks, contract and interface definitions, the code that registers implementations, and the configuration of service connections and credentials. Readers point you to them; decide from the files, since a summary flattens the structure a decision rests on.
 - Read the history for change coupling: list the files changed together over recent months, for example with `git log --since=<date> --name-only --format=%h`, and note the groups that keep changing together.
-- With little or no documentation, the consumer-facing surface in code is the top altitude.
+- With little or no documentation, start from the consumer-facing surface in code, and delegate its sweep when it is large.
 
 ## Method
 
-Work in rounds, one level at a time: each round searches for the evidence its decisions need, and its decisions set what the next round searches. Once no component is left to open, you read the contract behind each inner boundary, a writer drafts the map, and you review the draft into the final map.
+Work in rounds, one level at a time: each round searches for the evidence its decisions need, and its decisions set what the next round searches. Once no component is left to open, you read the contract behind each inner boundary, a writer drafts the map, and you revise the draft into the final map.
 
 1. **Consumers and Level 1.** Read by altitude until you can say who uses the system, what each role wants from it, and in what words. Then search the consumer-facing surface in code, such as UI routes and screens, CLI commands, public APIs, entry points, and the tests that exercise them, for consumers and capabilities the documentation missed. Decide one boundary per consumer.
 2. **One round per level.** Keep the providers still to open in `open-list.md` in the working folder, starting with the providers of the Level 1 boundaries. Each round takes every provider on the list at once:
@@ -56,7 +56,7 @@ Work in rounds, one level at a time: each round searches for the evidence its de
    - Stop after a round in which no provider opens.
 3. **Inner boundaries.** For every boundary below Level 1, open the contract the consumer calls and list its operations. Write in `boundaries.md` in the working folder the interface, capabilities, and resource they give, following the rule for inner boundaries, with the contract's path. The step is done when every boundary below Level 1 has its entry.
 4. **Draft.** Save your own notes in the working folder, beside the readers' notes, the list, and `boundaries.md`. Then start a writer subagent on your own model, and brief it to load this skill and `use-boundary-model`, to do none of this method's reading, and to write the complete map from the working folder's evidence alone, following the extraction rules, the checks of step 6, and the map format, to `draft.json` in the working folder.
-5. **Review into the final map.** Check the draft against the rules of `use-boundary-model` and the evidence, reading the corpus again when needed, and write the reviewed draft to `map.json` in the working folder yourself. List in `questions` each choice that no rule settles, including those the draft raises, with the choice you made and the one you did not.
+5. **Revise the draft into the final map.** Check the draft against the rules of `use-boundary-model` and the evidence, reading the corpus again when needed, and write the revised draft to `map.json` in the working folder yourself. List in `questions` each choice that no rule settles, including those the draft raises, with the choice you made and the one you did not.
 6. **Check before finishing.**
    - Read every boundary, at every level, as its consumer would. Fix any whose provider is a technical artifact, or whose capabilities are steps, provider behavior, or engineering mechanics.
    - Every consumer and goal found while reading has a boundary, a cleanup candidate, or an exclusion line.
@@ -66,7 +66,7 @@ Work in rounds, one level at a time: each round searches for the evidence its de
    - A capability that fails either test is a look-alike: fold a step into the capability it belongs to, and list provider behavior in `excluded`.
    - Every part in `open-list.md` is a component or sits in its provider's `parts`, with why it is not one.
    - Every capability below Level 1 matches an operation of the contract its interface names, and every interface between components names a contract the code declares.
-   - Every source file in the corpus has one place: a component, an interface, engineering tooling, or a cleanup candidate. Write the places in the map's `places`, by folder where a whole folder shares one place, and settle every file left over.
+   - Every source file in the corpus has one place: a component, an interface, engineering tooling, or a cleanup candidate. Write the places in the map's `places`, by folder where a whole folder shares one place, and settle every file left over: `check-map.mjs <map.json> --places`, run from the repository root, lists them.
    - No call between components goes around their contract: search the imports between the files of different components, and settle each one that reaches past the contract.
    - Every element has a description a newcomer can follow, and every capability says what it takes and gives.
    - Every evidence path is an existing file: check each one from the repository root, for example with `test -f <path>`.

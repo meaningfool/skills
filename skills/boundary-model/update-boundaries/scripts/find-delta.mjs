@@ -68,25 +68,7 @@ if (!isCommit(base)) stop(lostRevision(base));
 const target = targetArg ?? "HEAD";
 if (!isCommit(target)) stop(`"${target}" is not a commit of this repository`);
 
-function matcher(glob) {
-  const source = glob
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*\//g, "\u0000")
-    .replace(/\*\*/g, "\u0001")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\u0000/g, "(?:.*/)?")
-    .replace(/\u0001/g, ".*");
-  return new RegExp(`^${source}$`);
-}
-// A pattern across folders, such as tests, comes first. Otherwise the longer a path's fixed
-// start, the more specific it is, and a file pattern outranks a folder.
-const weightOf = (glob) =>
-  glob.slice(0, -3).includes("**") ? Infinity : glob.split("*")[0].length + (glob.endsWith("/**") ? 0 : 0.5);
-const paths = map.places.flatMap((place) =>
-  place.paths.map((glob) => ({ place, test: matcher(glob), weight: weightOf(glob) })),
-);
-const placeOf = (file) =>
-  paths.filter((p) => p.test.test(file)).sort((a, b) => b.weight - a.weight)[0]?.place;
+const placeOf = check.placesOf(map);
 
 // A component's change touches its own boundaries directly. It can also show further out: on
 // the boundaries of the components that contain it, and on the areas they serve.

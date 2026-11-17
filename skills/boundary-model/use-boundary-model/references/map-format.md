@@ -121,10 +121,11 @@ A boundary map is one JSON file that follows [`boundary-map.schema.json`](../ass
 
 - Define each resource and interface once, at the top, and refer to it by name everywhere else.
 - Every consumer, provider, component, outside service, resource, interface, and area has a one-sentence `description` that says what it is, in plain words.
-- `resources`, on a provider, component, or outside service, lists the resources it keeps, as the Resource guidelines of the model say.
+- `resources`, on a provider, component, or outside service, lists the resources whose state it holds itself, and those its own boundaries work on.
 - A provider or component is opened when it lists `components`. `parts` holds its pieces that are not components, each with why.
 - A component that sits inside two providers or components is defined under the first, and named in the second's `sharedComponents` with the areas it serves there.
 - A boundary sits at the level of its consumer: a consumer of the system at Level 1, a component inside its provider.
+- A component that relies on an outside service, itself or through a component inside it, has its own boundary with it.
 - Every capability says what it `takes` and `gives`. Leave out its `interfaces` when every interface of the boundary offers it.
 - A mode is `observes`, `mutates`, `produces`, or `reacts`, as the Output guidelines of the model define them.
 - `places` says where the corpus's files sit, by folder where a whole folder shares one place: `kind` is `component` or `interface`, with that element's name, or `library`, `tooling`, `excluded`, or `cleanup`, with a name of your own. An update uses them to trace a change to its boundaries.
