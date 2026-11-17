@@ -1,36 +1,70 @@
 #!/usr/bin/env node
 // List what changed in a repository since a boundary map's revision, as Markdown on stdout:
 // the commits, the boundaries each changed file can touch, and what the map no longer covers.
-// Run it from the repository root. The target defaults to HEAD, the code checked out.
-// Usage: node find-delta.mjs <map.json> [<target-revision>]
+// Run it from the repository root. The target defaults to HEAD, the code checked out. With
+// --from, it compares from that commit instead of the map's revision.
+// Usage: node find-delta.mjs <map.json> [<target-revision>] [--from <commit>]
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const [mapPath, targetArg] = process.argv.slice(2);
-if (!mapPath) {
-  console.error("Usage: node find-delta.mjs <map.json> [<target-revision>]");
+const here = dirname(realpathSync(fileURLToPath(import.meta.url)));
+const args = process.argv.slice(2);
+const fromAt = args.indexOf("--from");
+const fromArg = fromAt === -1 ? undefined : args.splice(fromAt, 2)[1];
+const [mapPath, targetArg] = args;
+if (!mapPath || (fromAt !== -1 && !fromArg)) {
+  console.error("Usage: node find-delta.mjs <map.json> [<target-revision>] [--from <commit>]");
   process.exit(1);
 }
 const stop = (message) => {
   console.error(message);
   process.exit(1);
 };
-let map;
+
+// The map's format and its checks belong to the use-boundary-model skill, installed beside this one.
+const checker = join(here, "../../use-boundary-model/scripts/check-map.mjs");
+let check;
 try {
-  map = JSON.parse(readFileSync(mapPath, "utf8"));
-} catch (error) {
-  stop(error.code === "ENOENT" ? `No map at ${mapPath}` : `${mapPath} cannot be read: ${error.message}`);
+  check = await import(pathToFileURL(checker).href);
+} catch {
+  stop(`find-delta needs the use-boundary-model skill installed beside this one; no checker at ${checker}`);
 }
+let loaded;
+try {
+  loaded = check.loadMap(mapPath);
+} catch (error) {
+  stop(`${mapPath} cannot be read: ${error.message}`);
+}
+const { map, problems, missing } = loaded;
+if (missing) stop(`No map at ${mapPath}`);
+if (problems.length)
+  stop(`${mapPath} has ${problems.length} problem(s):\n  ${problems.join("\n  ")}\nFix the map first, then run this again.`);
+
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 2 ** 28 }).trim();
 const isCommit = (rev) => spawnSync("git", ["rev-parse", "--verify", "--quiet", `${rev}^{commit}`]).status === 0;
 const lines = (text) => (text ? text.split("\n") : []);
+// For a question git may fail to answer, such as outside a repository; no answer gives "".
+const ask = (...args) => spawnSync("git", args, { encoding: "utf8" }).stdout?.trim() ?? "";
 
-const base = map.system.revision;
-if (!isCommit(base))
-  stop(
-    `The map's revision, "${base}", is not a commit of this repository, so there is nothing to compare it with. ` +
-      "Run this from the repository the map describes, or extract the map again.",
+// A revision can be missing from a shallow clone, or gone after a squash merge or rewritten history.
+function lostRevision(revision) {
+  const said = `The map's revision, "${revision}", is not a commit of this repository`;
+  if (ask("rev-parse", "--is-shallow-repository") === "true")
+    return `${said}. This is a shallow clone, so it may only be missing from this clone: run git fetch --unshallow and try again.`;
+  const last = ask("log", "-1", "--format=%h%x00%as%x00%s", "--", mapPath);
+  if (!last)
+    return `${said}, so there is nothing to compare it with. Run this from the repository the map describes, or extract the map again.`;
+  const [hash, date, subject] = last.split("\0");
+  return (
+    `${said}. The map file last changed in ${hash} on ${date}: "${subject}". ` +
+    `To compare from there, run this again with --from ${hash}, or extract the map again.`
   );
+}
+const base = fromArg ?? map.system.revision;
+if (fromArg && !isCommit(fromArg)) stop(`"${fromArg}" is not a commit of this repository`);
+if (!isCommit(base)) stop(lostRevision(base));
 const target = targetArg ?? "HEAD";
 if (!isCommit(target)) stop(`"${target}" is not a commit of this repository`);
 
@@ -127,7 +161,7 @@ const other = (kinds) => [...groups.values()].filter((g) => g.place && kinds.inc
 
 const out = [];
 const section = (title, items) => out.push(`## ${title}`, "", ...(items.length ? items : ["None."]), "");
-out.push(`# Changes since the boundary map`, "", `- From: ${base.slice(0, 7)}`, `- To: ${git("rev-parse", "--short", target)}`, "");
+out.push(`# Changes since the boundary map`, "", `- From: ${git("rev-parse", "--short", base)}`, `- To: ${git("rev-parse", "--short", target)}`, "");
 section("Commits", lines(git("log", "--no-merges", "--format=- %h %s", `${base}..${target}`)));
 const listed = (found) => [...found].map(([name, why]) => `- ${name}: ${[...why].join(", ")}`);
 section("Boundaries touched directly", listed(direct));

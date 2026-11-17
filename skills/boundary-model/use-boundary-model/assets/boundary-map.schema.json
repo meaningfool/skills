@@ -118,7 +118,6 @@
         "name": { "$ref": "#/$defs/text" },
         "description": { "$ref": "#/$defs/text" },
         "resources": { "$ref": "#/$defs/names" },
-        "relationships": { "$ref": "#/$defs/text" },
         "serves": { "type": "array", "items": { "$ref": "#/$defs/areaRef" } },
         "parts": { "type": "array", "items": { "$ref": "#/$defs/reasoned" } },
         "components": { "type": "array", "items": { "$ref": "#/$defs/component" } },

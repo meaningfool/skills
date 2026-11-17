@@ -34,4 +34,4 @@ Each screen shows one open box. Going to another screen replaces it, so every sc
 - The page reads only the map format of `use-boundary-model`, and draws only a map that passes its checks.
 - A screen draws the open box's own boundaries in full, but the boundaries between its components only as lines. The map records which component handles an area, not which component an interface leads to.
 - Areas with the same name from different consumers are drawn as one box.
-- The page does not draw parts, relationships, places, questions, cleanup candidates or exclusions.
+- The page does not draw parts, places, questions, cleanup candidates or exclusions.
