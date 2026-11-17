@@ -5,7 +5,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const schema = JSON.parse(readFileSync(new URL("../boundary-map.schema.json", import.meta.url), "utf8"));
+const schema = JSON.parse(readFileSync(new URL("../assets/boundary-map.schema.json", import.meta.url), "utf8"));
 
 // The part of JSON Schema that boundary-map.schema.json uses.
 function checkShape(value, rule, path, problems) {

@@ -88,7 +88,7 @@ Shopper <-> Store                                              Level 1
 
 - **Definition**: A boundary map records a system's current boundaries, at every level. A system has one map, and it describes one revision of the code. A planned change does not belong in it.
 - **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence. Only a review by a person writes a map there, so what the map at its location says has been reviewed.
-- **Format**: one JSON file, described in [map-format.md](map-format.md) with its schema, [boundary-map.schema.json](boundary-map.schema.json). Check a map with `node <this skill's folder>/scripts/check-map.mjs <map.json>`; it needs Node 18 or later.
+- **Format**: one JSON file, described in [references/map-format.md](references/map-format.md) with its schema, [assets/boundary-map.schema.json](assets/boundary-map.schema.json). Check a map with `node <this skill's folder>/scripts/check-map.mjs <map.json>`; it needs Node 18 or later.
 - **Working folder**: a skill that works on a map keeps its working files in a folder outside the repository: the folder the caller names, otherwise the project's scratch location when its instructions name one, otherwise a temporary folder.
 
 | Skill | What it does with the map |

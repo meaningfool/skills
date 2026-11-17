@@ -1,6 +1,6 @@
 # Boundary map format
 
-A boundary map is one JSON file that follows [`boundary-map.schema.json`](boundary-map.schema.json). This example is the Store of the model, cut down to three boundaries:
+A boundary map is one JSON file that follows [`boundary-map.schema.json`](../assets/boundary-map.schema.json). This example is the Store of the model, cut down to three boundaries:
 
 ```json
 {

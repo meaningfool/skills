@@ -9,7 +9,7 @@ Write one JSON map of a system's current boundaries at the output path, using th
 
 ## Before you start
 
-- Load the `use-boundary-model` skill, and read its `map-format.md`. They define the concepts, the levels, and the map's format; this skill adds only how to extract them from a repository. If they are unavailable, say so and stop.
+- Load the `use-boundary-model` skill, and read its `references/map-format.md`. They define the concepts, the levels, and the map's format; this skill adds only how to extract them from a repository. If they are unavailable, say so and stop.
 - Take three inputs from the caller: the system to map, the corpus (the repository material included and excluded), and the output path. Ask for a missing system. Without an output path, use the map's location in `use-boundary-model`, and ask before replacing an existing map. Without a stated corpus, include the whole repository except dependencies, generated output, and secrets, together with its version-control history, read only. Record the source revision when available, for example with `git rev-parse HEAD`.
 - Stay inside the corpus: do not read, cite, or take names from excluded material.
 - Keep working files in the working folder that `use-boundary-model` describes. It is not part of the corpus.
@@ -75,7 +75,7 @@ Work in rounds, one level at a time: each round searches for the evidence its de
 
 ## Output format
 
-Write the map in the format of `map-format.md` in `use-boundary-model`, with these choices of extraction:
+Write the map in the format of `references/map-format.md` in `use-boundary-model`, with these choices of extraction:
 
 - Open a provider in the map exactly as the method opened it: list its components, and its other parts in `parts`.
 - Give every boundary the evidence its decisions rest on: files, not line ranges.
