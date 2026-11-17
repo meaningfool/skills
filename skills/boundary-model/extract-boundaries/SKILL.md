@@ -10,7 +10,7 @@ Write one JSON map of a system's current boundaries at the output path, using th
 ## Before you start
 
 - Load the `use-boundary-model` skill, and read its `references/map-format.md`. They define the concepts, the levels, and the map's format; this skill adds only how to extract them from a repository. If they are unavailable, say so and stop.
-- Take three inputs from the caller: the system to map, the corpus (the repository material included and excluded), and the output path. Ask for a missing system. Without an output path, use the map's location in `use-boundary-model`, and ask before replacing an existing map. Without a stated corpus, include the whole repository except dependencies, generated output, and secrets, together with its version-control history, read only. Record the source revision when available, for example with `git rev-parse HEAD`.
+- Take three inputs from the caller: the system to map, the corpus (the repository material included and excluded), and the output path. Ask for a missing system. Without an output path, use the map's location in `use-boundary-model`. If a map already exists at the output path, say so before starting, and offer `update-boundaries`, which keeps its reviewed decisions; go on only if the user wants to start over. Without a stated corpus, include the whole repository except dependencies, generated output, and secrets, together with its version-control history, read only. Record the source revision when available, for example with `git rev-parse HEAD`.
 - Stay inside the corpus: do not read, cite, or take names from excluded material.
 - Keep working files in the working folder that `use-boundary-model` describes. It is not part of the corpus.
 
@@ -71,4 +71,4 @@ Work in rounds, one level at a time: each round searches for the evidence its de
    - Every element has a description a newcomer can follow, and every capability says what it takes and gives.
    - Every evidence path is an existing file: check each one from the repository root, for example with `test -f <path>`.
    - The map passes the checks of the format: run `node <the use-boundary-model skill's folder>/scripts/check-map.mjs <working folder>/map.json` and fix each problem it lists.
-7. **Review.** Use `review-boundaries` with the whole map as its scope; it writes the map at the output path when the person is done. When no person can review it, leave the map in the working folder, give its path, and say it is unreviewed; write it at the output path only when the caller named that path.
+7. **Offer the review.** Give the path of the map in the working folder, say it is unreviewed, and offer to review it now with `review-boundaries`, which writes it at the output path when the person is done. Write it at the output path without a review only when the caller asked for that.

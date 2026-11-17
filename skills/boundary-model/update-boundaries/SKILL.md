@@ -11,7 +11,7 @@ The map describes one reviewed revision. An update moves it to a later one by lo
 
 - Load the `use-boundary-model` skill. If it is unavailable, say so and stop.
 - Find the map at its location. Without one, use `extract-boundaries` instead.
-- Take the target revision from the caller. Without one, use the head of the main branch.
+- Take the target revision from the caller. Without one, use the commit checked out, whose code you will read.
 - Keep working files in the working folder that `use-boundary-model` describes.
 
 ## Method

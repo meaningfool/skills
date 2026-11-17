@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // List what changed in a repository since a boundary map's revision, as Markdown on stdout:
 // the commits, the boundaries each changed file can touch, and what the map no longer covers.
-// Run it from the repository root. The target defaults to the head of the main branch.
+// Run it from the repository root. The target defaults to HEAD, the code checked out.
 // Usage: node find-delta.mjs <map.json> [<target-revision>]
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -31,8 +31,7 @@ if (!isCommit(base))
     `The map's revision, "${base}", is not a commit of this repository, so there is nothing to compare it with. ` +
       "Run this from the repository the map describes, or extract the map again.",
   );
-const originHead = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8" }).stdout?.trim();
-const target = targetArg ?? [originHead, "main", "master", "HEAD"].find((b) => b && isCommit(b));
+const target = targetArg ?? "HEAD";
 if (!isCommit(target)) stop(`"${target}" is not a commit of this repository`);
 
 function matcher(glob) {
