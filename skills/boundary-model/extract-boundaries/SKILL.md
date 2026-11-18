@@ -5,15 +5,14 @@ description: Map an existing system's boundaries from its repository — documen
 
 # Extract boundaries
 
-Write one JSON map of a system's current boundaries at the output path, using the concepts and levels of the `use-boundary-model` skill and the format of `boundary-map.schema.json` in the `visualize-boundaries` skill.
+Write one JSON map of a system's current boundaries at the output path, using the concepts, levels, and map format of the `use-boundary-model` skill.
 
 ## Before you start
 
-- Load the `use-boundary-model` skill. It defines the concepts and the levels; this skill adds only how to extract them from a repository. If it is unavailable, say so and stop.
-- Read `boundary-map.schema.json` in the `visualize-boundaries` skill. It defines the map's format. If it is unavailable, say so and stop.
-- Take three inputs from the caller: the system to map, the corpus (the repository material included and excluded), and the output path. Ask for a missing system. Without an output path, use the map's location in `use-boundary-model`, and ask before replacing an existing map. Without a stated corpus, include the whole repository except dependencies, generated output, and secrets, together with its version-control history, read only. Record the source revision when available, for example with `git rev-parse HEAD`.
+- Load the `use-boundary-model` skill, and read its `references/map-format.md`. They define the concepts, the levels, and the map's format; this skill adds only how to extract them from a repository. If they are unavailable, say so and stop.
+- Take three inputs from the caller: the system to map, the corpus (the repository material included and excluded), and the output path. Ask for a missing system. Without an output path, use the map's location in `use-boundary-model`. If a map already exists at the output path, say so before starting, and offer `update-boundaries`, which keeps its reviewed decisions; go on only if the user wants to start over. Without a stated corpus, include the whole repository except dependencies, generated output, and secrets, together with its version-control history, read only. Record the source revision when available, for example with `git rev-parse HEAD`.
 - Stay inside the corpus: do not read, cite, or take names from excluded material.
-- Keep working files in a folder outside the repository, in the project's scratch location when its instructions name one, otherwise in a temporary folder. A caller can name the folder. It is not part of the corpus.
+- Keep working files in the working folder that `use-boundary-model` describes. It is not part of the corpus.
 
 ## Extraction rules
 
@@ -31,7 +30,7 @@ Write one JSON map of a system's current boundaries at the output path, using th
 - **Interfaces name what is used.** Between components, name the interface after the contract between them; what the provider sends back to complete a capability, such as a delivery or a callback, travels inside that interface. For an outside service, name what the component actually uses, as its configuration and credentials show: an API it calls, or tokens it only verifies.
 - **Engineering tooling is a separate perimeter.** Leave out what works on the system itself, as `use-boundary-model` describes, unless the caller asks for it, and list it in `excluded`, one line per kind. Read architecture and boundary checks anyway, as evidence: they state which parts may reach which.
 - **Show what looks legacy or temporary.** List old hosts, redirects, bridges, compatibility paths, and similar transitional pieces in `cleanupCandidates`, saying what each is and why it looks transitional.
-- **Write for someone who does not know the code.** Name consumers, components, resources, and capabilities in plain words. Name a capability with a short verb phrase and put what it takes and gives in parentheses after it, such as "Cancel an order (takes the order; gives the refund)". In every list, say what an item is before saying why it is there.
+- **Write for someone who does not know the code.** Name consumers, components, resources, and capabilities in plain words. Name a capability with a short verb phrase, such as "Cancel order", and say in its `takes` and `gives` what the consumer hands over and gets back, such as "the order" and "the refund". In every list, say what an item is before saying why it is there.
 
 ## Reading by altitude
 
@@ -42,22 +41,22 @@ Write one JSON map of a system's current boundaries at the output path, using th
 - Ask readers for facts, such as routes, screens, commands, stored records, and the calls between parts, not for the names you expect to find: a brief that suggests names steers what readers report. When a reader reports a contract, an interface, a check, or a registry, it quotes the type, signature, or rule with its path.
 - Read the **deciding files** yourself: architecture and boundary checks, contract and interface definitions, the code that registers implementations, and the configuration of service connections and credentials. Readers point you to them; decide from the files, since a summary flattens the structure a decision rests on.
 - Read the history for change coupling: list the files changed together over recent months, for example with `git log --since=<date> --name-only --format=%h`, and note the groups that keep changing together.
-- With little or no documentation, the consumer-facing surface in code is the top altitude.
+- With little or no documentation, start from the consumer-facing surface in code, and delegate its sweep when it is large.
 
 ## Method
 
-Work in rounds, one level at a time: each round searches for the evidence its decisions need, and its decisions set what the next round searches. Once no component is left to open, you read the contract behind each inner boundary, a writer drafts the map, and you review the draft into the final map.
+Work in rounds, one level at a time: each round searches for the evidence its decisions need, and its decisions set what the next round searches. Once no component is left to open, you read the contract behind each inner boundary, a writer drafts the map, and you revise the draft into the final map.
 
 1. **Consumers and Level 1.** Read by altitude until you can say who uses the system, what each role wants from it, and in what words. Then search the consumer-facing surface in code, such as UI routes and screens, CLI commands, public APIs, entry points, and the tests that exercise them, for consumers and capabilities the documentation missed. Decide one boundary per consumer.
-2. **One round per level.** Keep the providers still to open in `open-list.md` in the working folder, starting with the Level 1 providers inside the system. Each round takes every provider on the list at once:
+2. **One round per level.** Keep the providers still to open in `open-list.md` in the working folder, starting with the providers of the Level 1 boundaries. Each round takes every provider on the list at once:
    - Search their insides: read their design documents, then search the code yourself or through readers briefed on each provider in parallel, from the entry points behind its interfaces, for its parts, what each part keeps, which parts call which and through what, and the outside services they use.
    - Decide yourself, with the whole system in view and its deciding files read. For each provider, list its parts in `open-list.md`, test each part against the component guideline in `use-boundary-model`, and write each result with the files behind it. A verdict without its parts, such as "one store" or "variants of one contract", does not count.
    - Open a provider when two or more of its parts are components, and put those components on the list. Leave it closed otherwise.
    - Decide whether a component opens in the round after the one that found it, never in the same round. When the evidence cannot settle a part, search again rather than leave it undecided.
    - Stop after a round in which no provider opens.
 3. **Inner boundaries.** For every boundary below Level 1, open the contract the consumer calls and list its operations. Write in `boundaries.md` in the working folder the interface, capabilities, and resource they give, following the rule for inner boundaries, with the contract's path. The step is done when every boundary below Level 1 has its entry.
-4. **Draft.** Save your own notes in the working folder, beside the readers' notes, the list, and `boundaries.md`. Then start a writer subagent on your own model: load this skill and `use-boundary-model`, skip this method, and write the complete map from the working folder's evidence alone, without further reading, following the extraction rules, the checks, and the output format, to `draft.json` in the working folder.
-5. **Review into the final map.** Check the draft against the rules of `use-boundary-model` and the evidence, reading the corpus again when needed, and write the reviewed draft to `map.json` in the working folder yourself. List in `questions` each choice that no rule settles, including those the draft raises, with the choice you made and the one you did not.
+4. **Draft.** Save your own notes in the working folder, beside the readers' notes, the list, and `boundaries.md`. Then start a writer subagent on your own model, and brief it to load this skill and `use-boundary-model`, to do none of this method's reading, and to write the complete map from the working folder's evidence alone, following the extraction rules, the checks of step 6, and the map format, to `draft.json` in the working folder.
+5. **Revise the draft into the final map.** Check the draft against the rules of `use-boundary-model` and the evidence, reading the corpus again when needed, and write the revised draft to `map.json` in the working folder yourself. List in `questions` each choice that no rule settles, including those the draft raises, with the choice you made and the one you did not.
 6. **Check before finishing.**
    - Read every boundary, at every level, as its consumer would. Fix any whose provider is a technical artifact, or whose capabilities are steps, provider behavior, or engineering mechanics.
    - Every consumer and goal found while reading has a boundary, a cleanup candidate, or an exclusion line.
@@ -67,107 +66,9 @@ Work in rounds, one level at a time: each round searches for the evidence its de
    - A capability that fails either test is a look-alike: fold a step into the capability it belongs to, and list provider behavior in `excluded`.
    - Every part in `open-list.md` is a component or sits in its provider's `parts`, with why it is not one.
    - Every capability below Level 1 matches an operation of the contract its interface names, and every interface between components names a contract the code declares.
-   - Every source file in the corpus has one place: a component, an interface, engineering tooling, or a cleanup candidate. Write the places in the map's `places`, by folder where a whole folder shares one place, and settle every file left over.
+   - Every source file in the corpus has one place: a component, an interface, engineering tooling, or a cleanup candidate. Write the places in the map's `places`, by folder where a whole folder shares one place, and settle every file left over: `check-map.mjs <map.json> --places`, run from the repository root, lists them.
    - No call between components goes around their contract: search the imports between the files of different components, and settle each one that reaches past the contract.
    - Every element has a description a newcomer can follow, and every capability says what it takes and gives.
    - Every evidence path is an existing file: check each one from the repository root, for example with `test -f <path>`.
-   - The map passes the checks of the format: run `node <the visualize-boundaries skill's folder>/scripts/render-map.mjs <working folder>/map.json <working folder>/map.html` and fix each problem it lists.
-7. **Review.** Use `review-boundaries` with the whole map as its scope; it writes the map at the output path when the person is done. When no person is there, as in an unattended evaluation, write the map at the output path yourself and say it is unreviewed.
-
-## Output format
-
-The map is one JSON file that follows `boundary-map.schema.json`.
-
-```json
-{
-  "system": { "name": "Store", "description": "…", "corpus": { "included": "…", "excluded": "…" }, "revision": "<commit, or unknown>" },
-  "consumers": [{ "name": "Shopper", "description": "…" }],
-  "providers": [
-    {
-      "name": "Store",
-      "description": "…",
-      "resources": ["Order"],
-      "parts": [{ "name": "Web app", "why": "a client, part of an interface" }],
-      "components": [
-        {
-          "name": "Storefront",
-          "description": "…",
-          "resources": ["Order"],
-          "serves": [{ "consumer": "Shopper", "area": "Shop" }],
-          "parts": [{ "name": "Routes", "why": "pass requests on" }]
-        }
-      ]
-    }
-  ],
-  "outsideServices": [{ "name": "Payments", "description": "…", "resources": ["Charge"] }],
-  "resources": [
-    { "name": "Order", "description": "…", "properties": ["status"] },
-    { "name": "Charge", "description": "…" }
-  ],
-  "interfaces": [
-    { "name": "website", "description": "…" },
-    { "name": "charges API", "description": "…" }
-  ],
-  "places": [
-    { "place": "Storefront", "kind": "component", "paths": ["src/storefront/**"] },
-    { "place": "Tests", "kind": "tooling", "paths": ["**/*.test.*"] }
-  ],
-  "boundaries": [
-    {
-      "consumer": "Shopper",
-      "provider": "Store",
-      "interfaces": ["website"],
-      "areas": [
-        {
-          "name": "Shop",
-          "type": "core",
-          "description": "…",
-          "capabilities": [
-            {
-              "name": "Place an order",
-              "takes": "a cart",
-              "gives": "a confirmed order",
-              "acts": [{ "mode": "produces", "resource": "Order" }]
-            }
-          ]
-        }
-      ],
-      "evidence": [{ "path": "<repository-relative path>", "shows": "<what it shows; no line ranges>" }]
-    },
-    {
-      "consumer": "Storefront",
-      "provider": "Payments",
-      "interfaces": ["charges API"],
-      "areas": [
-        {
-          "name": "Charge orders",
-          "type": "core",
-          "description": "…",
-          "capabilities": [
-            {
-              "name": "Charge a card",
-              "takes": "an amount and a card",
-              "gives": "the charge",
-              "acts": [{ "mode": "produces", "resource": "Charge" }]
-            }
-          ]
-        }
-      ],
-      "evidence": [{ "path": "…", "shows": "…" }]
-    }
-  ],
-  "questions": [{ "question": "…", "answer": "<the choice made> rather than <the alternative>; <why no rule settles it>" }],
-  "cleanupCandidates": [{ "name": "…", "why": "<why it looks legacy or temporary>" }],
-  "excluded": [{ "name": "…", "why": "<why it is out>" }]
-}
-```
-
-- Define each resource and interface once, at the top, and refer to it by name everywhere else.
-- Every consumer, provider, component, outside service, resource, interface, and area has a one-sentence `description` that says what it is, in plain words.
-- A provider or component is opened when it lists `components`. `parts` holds its pieces that are not components, each with why.
-- A component that sits inside two providers is defined under the first, and named in the second's `sharedComponents`.
-- A boundary sits at the level of its consumer: a consumer of the system at Level 1, a component inside its provider.
-- Leave out a capability's `interfaces` when every interface of the boundary offers it. Boundaries that share an interface offer the same capabilities through it.
-- A mode is `observes`, `mutates`, `produces`, or `reacts`, as defined in `use-boundary-model`.
-- `places` says where the corpus's files sit, by folder where a whole folder shares one place: `kind` is `component` or `interface`, with that element's name, or `library`, `tooling`, `excluded`, or `cleanup`, with a name of your own. An update uses them to trace a change to its boundaries.
-- Use an empty array for an empty list.
+   - The map passes the checks of the format: run `node <the use-boundary-model skill's folder>/scripts/check-map.mjs <working folder>/map.json` and fix each problem it lists.
+7. **Offer the review.** Give the path of the map in the working folder, say it is unreviewed, and offer to review it now with `review-boundaries`, which writes it at the output path when the person is done. Write it at the output path without a review only when the caller asked for that.

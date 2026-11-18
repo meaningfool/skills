@@ -48,33 +48,34 @@ Shopper <-> Store                                              Level 1
     Browse products: observes Product
     Place order: produces Order · mutates Loyalty balance
     List past orders: observes Order
-  Track loyalty points (supporting)
+  See loyalty balance (supporting)
     See loyalty balance: observes Loyalty balance [mobile app]
 
   Inside Store                                                 Level 2
-    Storefront: shopping and loyalty; serves Shopper › Shop, Track loyalty points
+    Storefront: shopping and loyalty; serves Shopper › Shop, See loyalty balance
     Payments: charging orders; serves Shopper › Shop
     Resources of Payments: Charge
     Resources of Card network: Card authorization
 
     Storefront <-> Payments
-      Interfaces: service-to-service API
+      Interfaces: charges API
       Charge orders (core)
         Charge order: produces Charge
         Refund order: mutates Charge
 
     Payments <-> Card network
       Interfaces: card network API
-      Authorize payments (core)
+      Authorize card payment (core)
         Authorize card payment: produces Card authorization
 
     Inside Payments                                            Level 3
       Charge service: runs charges; serves Storefront › Charge orders
       Fraud check: scores payments; serves Storefront › Charge orders
+      Resources of Fraud check: Charge
 
       Charge service <-> Fraud check
-        Interfaces: service-to-service API
-        Score payments (core)
+        Interfaces: fraud scoring API
+        Score payment (core)
           Score payment: observes Charge
 ```
 
@@ -86,7 +87,9 @@ Shopper <-> Store                                              Level 1
 ## Boundary map
 
 - **Definition**: A boundary map records a system's current boundaries, at every level. A system has one map, and it describes one revision of the code. A planned change does not belong in it.
-- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence.
+- **Location**: `docs/boundary-map.json` from the repository root by default. A user-defined path takes precedence. A project that keeps its map at another path records that path in its agent instructions, such as AGENTS.md, so later sessions find it.
+- **Format**: one JSON file, described in [references/map-format.md](references/map-format.md) with its schema, [assets/boundary-map.schema.json](assets/boundary-map.schema.json). Check a map with `node <this skill's folder>/scripts/check-map.mjs <map.json>`; it needs Node 18 or later.
+- **Working folder**: a skill that works on a map keeps its working files in a folder outside the repository: the folder the caller names, otherwise the project's scratch location when its instructions name one, otherwise a temporary folder.
 
 | Skill | What it does with the map |
 | --- | --- |
@@ -139,6 +142,8 @@ Example:
 - Check that it is not really a property of another resource, a representation, internal or debug state, a credential used only to get access to something else, a setting or limit, the record a capability leaves behind, or a stream with no state of its own.
 - Watch for REST/API/database drift: in this model, resources are consumer-recognized concepts, not necessarily endpoints, records, tables, or persisted objects.
 - Keep the parts of a resource inside it, such as an order's lines or a document's revisions, unless the consumer finds, opens, or acts on them separately; then they form a resource of their own.
+- A provider keeps a resource when it holds that resource's state, itself or through a component inside it.
+- Several providers can keep the same resource under one name, each holding its own state for it: Payments keeps charges, and so does Fraud check, which keeps its own record of the charges it scored.
 
 Examples:
 
@@ -152,20 +157,20 @@ Examples:
 
 ### Capability and interaction
 
-- A capability works on at least one resource, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not a capability: check the look-alikes below.
+- A capability works on at least one resource its provider keeps, in one or more modes described under Output. If it works on none, either the resources are under-described or it is not a capability: check the look-alikes below.
 - Every capability gives the consumer an output. If you cannot name it, you are probably looking at a step or an interaction.
 - Name a capability with a verb: "Change order status", not "Manage order lifecycle".
 - Use the usual verb for a usual action: List for getting a collection ("List my orders", not "See my orders"), Edit for changing what something says, and one capability for moving something between statuses ("Change order status"), not one per status.
 - Infer capabilities from interaction stories. "The employee submits a time-off request through the HR portal" gives the capability Request time off, on the resource Time-off request, through the HR portal interface.
 - Some things look like capabilities but are not:
-  - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and retrying an uncertain start is part of starting. Checking seat availability, by contrast, is a traveler's goal in its own right. A check or confirmation whose result only decides whether another capability goes ahead is such a step, even when it reads a resource: checking that a user may administer an account is part of each administration action.
+  - A step of another capability has no output of its own for the consumer: checking a coupon is part of paying, and so is trying a declined card again. Checking seat availability, by contrast, is a traveler's goal in its own right. A check or confirmation whose result only decides whether another capability goes ahead is such a step, even when it reads a resource: checking that a user may administer an account is part of each administration action.
   - What the provider does on its own is not something the consumer does: enforcing a rate limit, or a nightly job that builds a report. Reading the report is a capability.
   - An interaction is one occurrence of a capability in a story, not a capability of its own.
 
 Examples:
 
 - Creating, editing, and deleting an invitation link are capabilities. Opening or copying the link are interactions with its representations.
-- Participating in a live session may be a capability. Opening the invitation, deciding to begin, submitting a response, and finishing may all be interactions inside it; they should not become separate capabilities just because they happen in sequence. At a more detailed level, starting and finishing may become independent capabilities when consumers do them independently; reconnecting stays part of participating.
+- Placing an order is a capability. Opening the cart, choosing a delivery slot, entering a card, and confirming are interactions inside it; they should not become separate capabilities just because they happen in sequence. Choosing a delivery slot becomes a capability of its own when shoppers book slots before they shop; entering a card again after a decline stays part of placing the order.
 
 ### Area
 
@@ -175,6 +180,7 @@ Examples:
 ### Interface
 
 - It is clearly identifiable by its user (the consumer).
+- It belongs to one provider, and several of its consumers can use it for different capabilities: a customer's script and a partner app can share one public API.
 - It is a channel or product surface where interactions happen, not every screen or widget inside that channel. A partner API may be an interface; one endpoint is usually an interaction surface, not a separate interface.
 - It is not merely implementation plumbing. A database table, repository adapter, backend module, or server function is not an interface unless the consumer directly invokes that thing as the access surface.
 - A client that only presents or relays the provider's capabilities, such as a thin CLI, is part of an interface, not a provider.
@@ -200,4 +206,4 @@ Examples:
 ### Implementation choice
 
 - Its existence, isolation, or statefulness does not create a boundary.
-- Replace technology names with stable responsibilities. If another technology could preserve the contract and ownership, keep the choice outside the boundary model. A stateful actor or a serverless function may implement a run lifecycle controller: model the responsibility, not the technology.
+- Replace technology names with stable responsibilities. If another technology could preserve the contract and ownership, keep the choice outside the boundary model. A stateful actor or a serverless function may implement the part that tracks each order's delivery: model the responsibility, not the technology.

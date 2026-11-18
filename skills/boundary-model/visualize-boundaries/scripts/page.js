@@ -1,6 +1,6 @@
 // Draws a boundary map one open box at a time. Each screen shows who uses the open box, its
 // interfaces, its capabilities, the components inside it, and what it uses; every box lists the
-// resources it owns. A click lights what the clicked thing connects to and explains it in the
+// resources it keeps. A click lights what the clicked thing connects to and explains it in the
 // panel; Open, at the foot of a box, makes it the open box. With ?still in the address the page
 // draws one screen for a still image, with what the panel would say written under the drawing.
 
@@ -68,7 +68,9 @@ const addComponent = (c, parent) => {
 for (const p of RAW.providers) addComponent(p, null);
 for (const s of RAW.outsideServices)
   nodes.set(s.name, { ...s, kind: "outside", children: [], shared: [], also: [], parts: [] });
-for (const p of RAW.providers)
+// A component can sit inside a second provider or component at any level.
+const defined = (c) => [c, ...(c.components ?? []).flatMap(defined)];
+for (const p of RAW.providers.flatMap(defined))
   for (const s of p.sharedComponents ?? []) {
     nodes.get(p.name).shared.push(s.name);
     nodes.get(s.name).also.push(p.name);
@@ -102,7 +104,6 @@ const ancestors = (name) => {
   const p = node(name).parent;
   return p ? [...ancestors(p), p] : [];
 };
-const topOf = (name) => ancestors(name)[0] ?? name;
 const handlers = (area) => {
   const serving = [...nodes.values()]
     .filter((n) => n.serves?.some((s) => `${s.consumer} › ${s.area}` === area.key))
@@ -132,11 +133,12 @@ function transition(fn) {
 
 // One open box per screen, in fixed columns: who uses it, its interfaces, its capabilities, its
 // components, and what it uses. Blue dots are the interfaces of the open box only; each box lists
-// the resources it owns. Lines join who uses the box to its interfaces, its interfaces to its
+// the resources it keeps. Lines join who uses the box to its interfaces, its interfaces to its
 // capabilities, and each component to what it depends on; they light with whatever is in focus.
 // All providers, above every open box, shows each provider with the consumers that use it.
 const TOP = "";
-const slugOf = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Keep in step with addressOf in render-map.mjs, which refuses a map where two names share an address.
+const slugOf = (s) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
 const bySlug = new Map([...nodes.keys()].map((n) => [slugOf(n), n]));
 // The page opens on the provider named after the system, when there is one, else on All providers.
 const HOME = RAW.providers.some((p) => p.name === RAW.system.name) ? [RAW.system.name] : [];
@@ -164,7 +166,7 @@ const opens = (name) => {
   return n.kind !== "consumer" && (n.children.length + n.shared.length > 0 || incoming(name).some((b) => !refinedBy(b)));
 };
 // Who keeps a resource, leaving out a box when one of its inner components keeps it too.
-const ownersOf = (r) => {
+const keepersOf = (r) => {
   const keepers = [...nodes.values()].filter((n) => n.resources?.includes(r)).map((n) => n.name);
   return keepers.filter((k) => !keepers.some((o) => o !== k && subtree(k).includes(o)));
 };
@@ -199,9 +201,9 @@ function screenOf(name) {
   const uses = unique(calls.filter((b) => !within(name).includes(b.provider) && !outside.includes(b.provider)).map((b) => b.provider));
   // Each resource kept inside the open box goes in the box on this screen that holds its keeper.
   const holder = (k) => boxes.find((b) => subtree(b).includes(k)) ?? (!top && subtree(name).includes(k) ? name : null);
-  const owned = new Map();
+  const kept = new Map();
   for (const r of RAW.resources)
-    for (const h of unique(ownersOf(r.name).map(holder)).filter(Boolean)) owned.set(h, [...(owned.get(h) ?? []), r.name]);
+    for (const h of unique(keepersOf(r.name).map(holder)).filter(Boolean)) kept.set(h, [...(kept.get(h) ?? []), r.name]);
   return {
     top,
     consumers,
@@ -212,7 +214,7 @@ function screenOf(name) {
     boxes,
     uses,
     visible: new Set([...consumers, ...boxes, ...uses]),
-    owned,
+    kept,
     // What each component, or the open box, depends on among the boxes on this screen.
     links: calls.filter((b) => boxes.includes(b.provider) || uses.includes(b.provider)),
   };
@@ -277,7 +279,7 @@ function lineage(key) {
   if (kind === "r") {
     const caps = actingOn(id);
     for (const g of s.areas) if (g.members.some((a) => caps.some((c) => c.area === a))) keys.add(`a:${g.name}`);
-    ownersOf(id).forEach((o) => lightBox(o, "owns"));
+    keepersOf(id).forEach((o) => lightBox(o, "keeps"));
     unique(caps.flatMap((c) => handlers(c.area))).forEach((h) => lightBox(h, "acts"));
   }
   if (kind === "b") {
@@ -300,11 +302,11 @@ function lineage(key) {
         lightBox(far, role);
       }
     }
-    (s.owned.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
+    (s.kept.get(id) ?? []).forEach((r) => keys.add(`r:${r}`));
   }
   // A shared component sits in more than one box on the screen: it lights the one already lit, else
   // the one holding the selection, else the one it is defined in.
-  const home = kind === "r" ? [...s.owned].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
+  const home = kind === "r" ? [...s.kept].find(([, rs]) => rs.includes(id))?.[0] : kind === "b" ? id : null;
   const notes = new Map(); // a lit box -> what the components inside it do, by role
   const assign = (at, name, role) => {
     keys.add(`b:${at}`);
@@ -323,13 +325,13 @@ function lineage(key) {
   return { keys, notes };
 }
 
-// What the components inside a lit box do with the selection: "Run controller owns it; Conversations
+// What the components inside a lit box do with the selection: "Run controller keeps it; Conversations
 // and Execution kits act on it."
-const VERBS = { owns: ["owns it", "own it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
+const VERBS = { keeps: ["keeps it", "keep it"], acts: ["acts on it", "act on it"], handles: ["handles it", "handle it"], calls: ["calls it", "call it"], asks: ["asks for it", "ask for it"] };
 function noteOf(roles) {
-  const owners = roles.get("owns") ?? new Set();
+  const keepers = roles.get("keeps") ?? new Set();
   const parts = [...roles].map(([role, names]) => {
-    const list = [...names].filter((n) => role === "owns" || !owners.has(n));
+    const list = [...names].filter((n) => role === "keeps" || !keepers.has(n));
     if (!list.length) return null;
     const who = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
     return role === "called" ? `It calls ${who}` : `${who} ${VERBS[role][list.length > 1 ? 1 : 0]}`;
@@ -368,7 +370,7 @@ function box(name, where) {
   const n = node(name);
   const key = `b:${name}`;
   const inner = n.children.length + n.shared.length;
-  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${topOf(name)}` : null;
+  const shared = where === "inside" && n.also.includes(openBox) ? `Shared with ${n.parent}` : null;
   const canOpen = opens(name);
   const enter = (e) => (e.stopPropagation(), go(name));
   const note = current?.notes.get(name);
@@ -380,7 +382,7 @@ function box(name, where) {
       kindLine(shared ?? KIND_WORD[n.kind]),
       el("button", { type: "button", class: "b-name", onclick: pick(key) }, name),
       note && el("span", { class: "b-via" }, noteOf(note)),
-      where === "inside" && chips(screen.owned.get(name) ?? []),
+      where === "inside" && chips(screen.kept.get(name) ?? []),
       canOpen && el("button", { type: "button", class: "b-go", onclick: enter }, el("span", {}, inner ? `Open, ${inner} components` : "Open"), el("span", {}, "›")),
     ),
   );
@@ -403,7 +405,7 @@ const zone = (cls, title, ...content) => el("div", { class: `b-zone ${cls}` }, e
 function frame(name) {
   const n = node(name);
   const s = screen;
-  const own = s.owned.get(name) ?? [];
+  const keeps = s.kept.get(name) ?? [];
   const body = [
     zone("z-interface", "Interfaces", s.ports.map((iface) => register(`p:${iface}`, el("button", { type: "button", class: "b-port edge", onclick: pick(`p:${iface}`) }, iface)))),
     zone("z-capability", "Capabilities", s.areas.map(areaBox)),
@@ -420,7 +422,7 @@ function frame(name) {
       el("h2", {}, name),
       text("p", n.description),
       s.through && el("p", { class: "b-through" }, `Reached through ${s.through}'s interfaces.`),
-      own.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Owns"), chips(own)),
+      keeps.length > 0 && el("div", { class: "b-keeps" }, el("span", { class: "b-keeps-label" }, "Keeps"), chips(keeps)),
     ),
     el("div", { class: "b-body" }, body),
   );
@@ -701,9 +703,9 @@ function panelOf(key) {
   }
   if (kind === "r") {
     const r = resourceByName.get(id);
-    const hidden = ownersOf(id).flatMap((k) => {
-      const at = [...s.owned].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
-      return at && at !== k ? [`Owned by ${k}, inside ${at}.`] : [];
+    const hidden = keepersOf(id).flatMap((k) => {
+      const at = [...s.kept].find(([b, rs]) => rs.includes(id) && subtree(b).includes(k))?.[0];
+      return at && at !== k ? [`Kept by ${k}, inside ${at}.`] : [];
     });
     return [
       head("Resource", "k-resource", id),
@@ -814,7 +816,7 @@ function navigate(next, { remember = true, fromAddress = false, restore = false 
     const hash = addressOf(next);
     // A sandboxed viewer may refuse to change the address; the screen changes all the same.
     try {
-      if (location.hash !== hash) history.pushState(null, "", hash);
+      if (decodeURIComponent(location.hash) !== hash) history.pushState(null, "", hash);
     } catch {}
   }
   transition(() => {
@@ -830,7 +832,7 @@ function navigate(next, { remember = true, fromAddress = false, restore = false 
 }
 
 function fromHash() {
-  const parts = location.hash.slice(1).split("/").filter(Boolean);
+  const parts = decodeURIComponent(location.hash.slice(1)).split("/").filter(Boolean);
   if (parts[0] === "all") return [];
   const names = parts.map((p) => bySlug.get(p));
   if (!names.length || names.some((n) => !n)) return HOME;
@@ -861,7 +863,7 @@ function legendOf(s) {
         g.capabilities.map((c) => entry(c.name, `takes ${c.takes}; gives ${c.gives}; ${acts(c)}.`)),
       ),
     ),
-    section("Resources", null, unique([...s.owned.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
+    section("Resources", null, unique([...s.kept.values()].flat()).map((r) => entry(r, resourceByName.get(r).description))),
   );
 }
 

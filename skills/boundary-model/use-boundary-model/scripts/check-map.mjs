@@ -1,7 +1,13 @@
-// Check a boundary map against boundary-map.schema.json and against its own cross-references.
-import { readFileSync } from "node:fs";
+#!/usr/bin/env node
+// Check a boundary map against boundary-map.schema.json, against its own cross-references, and
+// against the rules of the model that a script can test.
+// With --places, run from the repository root, it also lists the tracked files no place matches.
+// Usage: node check-map.mjs <map.json> [--places]
+import { execFileSync } from "node:child_process";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const schema = JSON.parse(readFileSync(new URL("../boundary-map.schema.json", import.meta.url), "utf8"));
+const schema = JSON.parse(readFileSync(new URL("../assets/boundary-map.schema.json", import.meta.url), "utf8"));
 
 // The part of JSON Schema that boundary-map.schema.json uses.
 function checkShape(value, rule, path, problems) {
@@ -45,7 +51,8 @@ function unique(names, what, problems) {
   }
 }
 
-// What the schema cannot say: every name refers to something the map defines.
+// What the schema cannot say: every name refers to something the map defines, and the rules of the
+// model hold, such as a provider offering capabilities only on the resources it keeps.
 function checkReferences(file, problems) {
   const owners = file.providers.flatMap((p) => allComponents(p));
   const components = new Map(owners.map(({ component }) => [component.name, component]));
@@ -70,7 +77,7 @@ function checkReferences(file, problems) {
 
   const usedInterfaces = new Set();
   const usedResources = new Set();
-  const offered = new Map();
+  const providerOf = new Map(); // an interface -> the provider it belongs to, and where it was first seen
   for (const b of file.boundaries) {
     if (!consumers.has(b.consumer) && !components.has(b.consumer))
       problems.push(`${label(b)}: the consumer is not a consumer or a component`);
@@ -90,14 +97,25 @@ function checkReferences(file, problems) {
           problems.push(`${label(b)} › ${c.name}: ${b.provider} does not keep "${resource}"`);
       }
     }
+    // An interface is a channel of one provider; consumers of that provider may share it.
     for (const name of b.interfaces) {
-      const names = capabilities.filter((c) => !c.interfaces || c.interfaces.includes(name)).map((c) => c.name).sort();
-      const before = offered.get(name);
-      if (before && before.names.join() !== names.join())
-        problems.push(`"${name}" offers different capabilities on ${before.boundary} and ${label(b)}`);
-      offered.set(name, before ?? { names, boundary: label(b) });
+      const before = providerOf.get(name);
+      if (before && before.provider !== b.provider)
+        problems.push(`"${name}" is an interface of ${before.provider} on ${before.boundary}, and of ${b.provider} on ${label(b)}`);
+      providerOf.set(name, before ?? { provider: b.provider, boundary: label(b) });
     }
+    const core = b.areas.filter((a) => a.type === "core");
+    if (core.length !== 1) problems.push(`${label(b)}: has ${core.length} core areas, not one`);
+    else if (!core[0].capabilities.length) problems.push(`${label(b)}: its core area has no capability`);
+    if (!b.evidence.length) problems.push(`${label(b)}: has no evidence`);
+    for (const c of capabilities)
+      if (!c.acts.length) problems.push(`${label(b)} › ${c.name}: works on no resource`);
   }
+  const onBoundary = new Set(file.boundaries.flatMap((b) => [b.consumer, b.provider]));
+  for (const name of consumers)
+    if (!onBoundary.has(name)) problems.push(`Consumer "${name}" is on no boundary`);
+  for (const name of outside.keys())
+    if (!onBoundary.has(name)) problems.push(`Outside service "${name}" is on no boundary`);
   for (const name of interfaces)
     if (!usedInterfaces.has(name)) problems.push(`Interface "${name}" is on no boundary`);
   for (const name of resources)
@@ -119,11 +137,84 @@ function checkReferences(file, problems) {
   }
 }
 
-// Gives the map, or the problems that keep it from being drawn.
+// Gives the map, or the problems that keep it from being used.
 export function readMap(text) {
   const file = JSON.parse(text);
   const problems = [];
   checkShape(file, schema, "map", problems);
   if (!problems.length) checkReferences(file, problems);
   return problems.length ? { problems } : { problems, map: file };
+}
+
+// The same, from a file, with a missing file or broken JSON given as a problem that names it.
+export function loadMap(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return { problems: [`No map at ${path}`], missing: true };
+    throw error;
+  }
+  try {
+    return readMap(text);
+  } catch (error) {
+    if (error instanceof SyntaxError) return { problems: [`${path} is not valid JSON: ${error.message}`] };
+    throw error;
+  }
+}
+
+function matcher(glob) {
+  const source = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*\//g, "\u0000")
+    .replace(/\*\*/g, "\u0001")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\u0000/g, "(?:.*/)?")
+    .replace(/\u0001/g, ".*");
+  return new RegExp(`^${source}$`);
+}
+// A pattern across folders, such as tests, comes first. Otherwise the longer a path's fixed
+// start, the more specific it is, and a file pattern outranks a folder.
+const weightOf = (glob) =>
+  glob.slice(0, -3).includes("**") ? Infinity : glob.split("*")[0].length + (glob.endsWith("/**") ? 0 : 0.5);
+// The place a file belongs to, or undefined.
+export function placesOf(map) {
+  const paths = map.places.flatMap((place) =>
+    place.paths.map((glob) => ({ place, test: matcher(glob), weight: weightOf(glob) })),
+  );
+  return (file) => paths.filter((p) => p.test.test(file)).sort((a, b) => b.weight - a.weight)[0]?.place;
+}
+
+const inside = (c) => (c.components ?? []).flatMap((k) => [k, ...inside(k)]);
+export const countsOf = (map) =>
+  `${map.consumers.length} consumers, ${map.providers.length} providers, ` +
+  `${map.providers.flatMap(inside).length} components, ${map.outsideServices.length} outside services, ` +
+  `${map.resources.length} resources, ${map.boundaries.length} boundaries`;
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
+  const args = process.argv.slice(2);
+  const withPlaces = args.includes("--places");
+  const [mapPath] = args.filter((a) => a !== "--places");
+  if (!mapPath) {
+    console.error("Usage: node check-map.mjs <map.json> [--places]");
+    process.exit(1);
+  }
+  const { map, problems } = loadMap(mapPath);
+  if (problems.length) {
+    console.error(`${mapPath} has ${problems.length} problem(s):\n  ${problems.join("\n  ")}`);
+    process.exit(1);
+  }
+  console.log(`${mapPath} passes: ${countsOf(map)}.`);
+  if (withPlaces) {
+    const placeOf = placesOf(map);
+    const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8", maxBuffer: 2 ** 28 })
+      .split("\0")
+      .filter(Boolean);
+    const unplaced = files.filter((file) => !placeOf(file));
+    if (unplaced.length) {
+      console.error(`${unplaced.length} of ${files.length} tracked files have no place:\n  ${unplaced.join("\n  ")}`);
+      process.exit(1);
+    }
+    console.log(`All ${files.length} tracked files have a place.`);
+  }
 }

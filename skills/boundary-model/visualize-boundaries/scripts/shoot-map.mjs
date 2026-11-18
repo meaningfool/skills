@@ -5,7 +5,7 @@
 // Chromium or Edge.
 // Usage: node shoot-map.mjs <page.html> <folder>
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -50,30 +50,34 @@ const headless = (...args) =>
     ],
     { encoding: "utf8", maxBuffer: 2 ** 26, timeout: 60_000 },
   );
+const fail = (message) => {
+  rmSync(profile, { recursive: true, force: true });
+  console.error(message);
+  process.exit(1);
+};
+const failure = (run) => (run.error?.message ?? run.stderr?.trim().split("\n").at(-1)) || `exit status ${run.status}`;
 // The page measures itself on a first pass and writes the size its image needs.
 const measure = (address) => {
-  const dom = headless("--window-size=1400,900", "--dump-dom", url(address)).stdout ?? "";
+  const run = headless("--window-size=1400,900", "--dump-dom", url(address));
+  if (run.status !== 0) fail(`${browser} could not open ${url(address)}: ${failure(run)}`);
+  const dom = run.stdout ?? "";
   return { dom, size: dom.match(/data-still-size="(\d+)x(\d+)"/) };
 };
 
 const first = measure("#all");
 const screens = first.dom.match(/data-screens="([^"]*)"/)?.[1].split(" ");
-if (!screens) {
-  console.error("The page gave no list of screens. Was it drawn by render-map.mjs?");
-  process.exit(1);
-}
+if (!screens) fail("The page gave no list of screens. Was it drawn by render-map.mjs?");
 
 mkdirSync(folder, { recursive: true });
 for (const address of screens) {
   const path = address.slice(1);
   const name = `${path === "all" ? 0 : path.split("/").length}-${path.replaceAll("/", "--")}`;
   const { size } = address === "#all" ? first : measure(address);
-  if (!size) {
-    console.error(`${name}: the page gave no size`);
-    process.exit(1);
-  }
+  if (!size) fail(`${name}: the page gave no size`);
   const file = join(folder, `${name}.png`);
-  headless(`--window-size=${size[1]},${size[2]}`, "--force-device-scale-factor=2", `--screenshot=${resolve(file)}`, url(address));
+  rmSync(file, { force: true });
+  const run = headless(`--window-size=${size[1]},${size[2]}`, "--force-device-scale-factor=2", `--screenshot=${resolve(file)}`, url(address));
+  if (run.status !== 0 || !existsSync(file)) fail(`${name}: ${browser} wrote no image: ${failure(run)}`);
   console.log(file);
 }
 rmSync(profile, { recursive: true, force: true });
