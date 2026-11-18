@@ -15,7 +15,7 @@ A map is finished when a person has reviewed it. Code settles what exists; only 
 
 ## Prepare the screens
 
-1. Draw the draft with `render-map.mjs` from the `visualize-boundaries` skill, then run `node <that skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. It writes one image of All providers and one of each box that opens, each named by how deep its screen is and the path to it, such as `0-all.png` and `2-store--payments.png`. Every image carries the definitions of what it shows, so nobody needs to open the page. Without Chrome, Chromium, or Edge there are no images: use the page instead, and name the boxes to open.
+1. Draw the draft with `render-map.mjs` from the `visualize-boundaries` skill, then run `node <that skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. It writes one image of All providers and one of each box that opens, each named by how deep its screen is and the path to it, such as `0-all.png` and `2-store--payments.png`. Every image carries the definitions of what it shows, so nobody needs to open the page. Without Chrome, Chromium, or Edge there are no images: use the page instead, and name the boxes to open. In an update, draw the draft with `--against` the map at its location, so each image marks what changed and only the screens with a change are shot.
 2. Before asking anything, check the screens you will show against the code, and against the project's plans and vocabulary. A question you can settle by reading is not a question.
 3. Look for what a person would stumble on:
    - **Names** that the code, the product or the plans do not use, and the same word used for different things.
@@ -32,7 +32,7 @@ A map is finished when a person has reviewed it. Code settles what exists; only 
 Go from the top down, one depth at a time: All providers, then the screens of the boxes it opens, and so on. In an update, show only the screens of the boxes the changes reach.
 
 1. Send the images first: the screens of this depth, starting with those that have something to decide or to read closely. Add a link to the page as an extra, never as the only way to see the map. When the chat cannot show images, give the path of each image and of the page, and say in a line what to look at in each.
-2. Ask at most five questions. Each one gives the choice in plain words, the fact behind it, and your suggestion.
+2. Ask at most five questions. Each one gives the choice in plain words, the fact behind it, and your suggestion. When the other option of a question adds, removes, or moves a box, a boundary, or a capability, draw it on a copy of the draft, with `--against` the draft, and send both versions of each screen it changes, deeper ones included: A, the draft, and B, the other option.
 3. List what stays unless they object. Say which choices already match an earlier review.
 4. Keep the text short: they are reading the images. Then stop and wait.
 5. Apply the answers before you show the next depth, so its images already include them. Remove from `questions` each entry an answer settles.

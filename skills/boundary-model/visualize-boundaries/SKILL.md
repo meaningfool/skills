@@ -18,6 +18,8 @@ If the script lists problems, it writes no page. Each one is a place where the m
 
 For still images, run `node <this skill's folder>/scripts/shoot-map.mjs <page.html> <folder>`. It writes one image of All providers and one of each box that opens, each named by how deep its screen is and the path to it, such as `2-store--payments.png`. Under the drawing, each image gives the descriptions of what it shows. It needs Chrome, Chromium, or Edge; without one it gives the address to start from.
 
+To show what changed since an earlier map, such as the one before an update or the draft beside an alternative, add `--against <earlier.json>` to `render-map.mjs`. What did not change fades. A box or capability group that is new, or that changed itself or on the screens inside it, gets a heavier outline, solid when new and dashed when changed, and a New or Changed pill; resources, interfaces and lines are marked the same way. Each image's text starts with what changed on its screen, a rename or a move included, and `shoot-map.mjs` takes only All providers and the screens with a change.
+
 ## What the page shows
 
 Each screen shows one open box. Going to another screen replaces it, so every screen stays about as busy as the last.

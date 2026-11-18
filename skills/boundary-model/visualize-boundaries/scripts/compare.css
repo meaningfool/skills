@@ -1,0 +1,41 @@
+/* ---- what changed since an earlier map ---- */
+/* What did not change fades. A new box or capability group gets a heavier solid outline in its own
+   colour and a stronger fill; a changed one, the same outline dashed. Either carries a pill, New or
+   Changed. Resources that are new or changed get a brighter fill and a heavier outline, solid or
+   dashed. Interface names and lines are marked in yellow: fully or solid when new, underlined or
+   dashed when changed. The outlines replace the border, and are drawn as outlines so that nothing
+   moves after the lines are drawn. */
+.diff { --mark: #ffd43b; --mark-ink: #d9a400; }
+.b-changes { column-span: all; margin: 0 0 18px; padding: 10px 14px 6px; background: var(--panel); border: 1px solid var(--panel-line); }
+.b-changes ul { columns: 2; column-gap: 32px; }
+.b-changes li { break-inside: avoid; }
+
+.diff .b-box:not([data-diff]):not([data-diff-in]), .diff .b-port:not([data-diff]) { opacity: 0.3; }
+.diff .b-chip:not([data-diff]) { opacity: 0.45; }
+.diff .b-box[data-diff="new"] .b-chip { opacity: 1; }
+.diff .b-wires path:not([data-diff]) { opacity: 0.2; }
+
+.diff .b-box[data-diff] { border-color: transparent; outline: 2.5px solid var(--k); outline-offset: -1px; }
+.diff .b-box.provider[data-diff] { outline-offset: -1.5px; }
+.diff .b-box[data-diff="new"] { background: color-mix(in srgb, var(--k) 20%, var(--paper)); }
+.diff .b-box[data-diff="changed"] { outline-style: dashed; }
+.diff .b-box[data-pill]::after { content: attr(data-pill); position: absolute; top: -10px; right: 8px; padding: 0 8px; font-size: 10.5px; font-weight: 600; line-height: 18px; letter-spacing: 0.02em; color: var(--ink); border-radius: 999px; }
+.diff .b-box[data-diff="new"]::after { background: var(--mark); }
+.diff .b-box[data-diff="changed"]::after { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--mark-ink); }
+
+.diff .b-chip[data-diff] { border-color: transparent; background: color-mix(in srgb, var(--k) 26%, var(--paper)); outline: 1.5px solid var(--k); outline-offset: -1px; }
+.diff .b-chip[data-diff="changed"] { outline-style: dashed; }
+
+.diff .b-port[data-diff="new"], .diff [data-diff="new"] > strong, .diff .b-frame-head h2[data-diff="new"] {
+  text-decoration: underline 0.62em var(--mark); text-underline-offset: -0.42em; text-decoration-skip-ink: none;
+}
+.diff .b-port[data-diff="changed"], .diff [data-diff="changed"] > strong, .diff [data-diff="inside"] > strong, .diff .b-frame-head h2[data-diff="changed"] {
+  text-decoration: underline 0.28em var(--mark); text-underline-offset: 0.1em; text-decoration-skip-ink: none;
+}
+.diff .b-wires path[data-diff] { stroke: var(--mark-ink); stroke-width: 3; }
+.diff .b-wires path[data-diff="changed"] { stroke-dasharray: 7 4; }
+
+.diff .b-legend li[data-diff]::marker { content: "● "; color: var(--mark-ink); }
+.diff .b-legend li[data-diff="changed"]::marker, .diff .b-legend li[data-diff="inside"]::marker { content: "○ "; }
+.diff .b-legend li[data-diff="gone"]::marker { content: "× "; color: var(--graphite); }
+.diff li[data-diff="gone"] > strong { text-decoration: line-through 0.1em var(--ink); }

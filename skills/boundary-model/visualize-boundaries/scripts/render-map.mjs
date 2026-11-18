@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 // Check a boundary map, then write one self-contained HTML page that draws it.
-// Usage: node render-map.mjs <map.json> [<page.html>]
+// With --against, it marks what changed since an earlier map, such as the reviewed one.
+// Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>]
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(realpathSync(fileURLToPath(import.meta.url)));
-const [mapPath, outArg] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const option = (name) => {
+  const at = args.indexOf(name);
+  return at === -1 ? undefined : args.splice(at, 2)[1];
+};
+const againstPath = option("--against");
+const [mapPath, outArg] = args;
 if (!mapPath) {
-  console.error("Usage: node render-map.mjs <map.json> [<page.html>]");
+  console.error("Usage: node render-map.mjs <map.json> [<page.html>] [--against <earlier.json>]");
   process.exit(1);
 }
 const outPath = outArg ?? `${mapPath.replace(/\.json$/, "")}.html`;
@@ -71,6 +78,16 @@ const title = escapeHtml(`${map.system.name} boundary map`);
 const css = readFileSync(join(here, "page.css"), "utf8");
 const js = readFileSync(join(here, "page.js"), "utf8");
 const data = JSON.stringify(map).replace(/</g, "\\u003c");
+let against = "";
+if (againstPath) {
+  const earlier = check.loadMap(againstPath);
+  if (earlier.problems.length) {
+    console.error(`${againstPath} has ${earlier.problems.length} problem(s):\n  ${earlier.problems.join("\n  ")}`);
+    process.exit(1);
+  }
+  const base = JSON.stringify(earlier.map).replace(/</g, "\\u003c");
+  against = `<style>\n${readFileSync(join(here, "compare.css"), "utf8")}</style>\n<script type="application/json" id="base-data">${base}</script>\n<script>\n${readFileSync(join(here, "compare.js"), "utf8")}</script>\n`;
+}
 
 const page = `<!doctype html>
 <html lang="en">
@@ -94,7 +111,7 @@ ${css}</style>
 <script type="application/json" id="map-data">${data}</script>
 <script>
 ${js}</script>
-</body>
+${against}</body>
 </html>
 `;
 
