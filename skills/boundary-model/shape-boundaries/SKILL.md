@@ -7,7 +7,7 @@ description: Express an expected change as the boundary changes it leads to, wit
 
 ## Goal
 
-Express the change the user wants as the boundary changes it leads to, with the `boundary model` from the `use-boundary-model` skill: every boundary, resource, capability, and interface it adds, modifies, or removes, on the boundaries the change is about. List what changes inside their providers, such as a new component, under `Details`, for refinement. Clarify consumers, providers, interactions, interfaces, resources, and capabilities only as needed for that purpose.
+Express the change the user wants as the boundary changes it leads to, with the `boundary model` from the `use-boundary-model` skill: every boundary, resource, capability, and interface it adds, modifies, or removes, at every level it reaches. Clarify consumers, providers, interactions, interfaces, resources, and capabilities only as needed for that purpose.
 
 Interview the user until no open question could add, remove, or redefine a boundary change. Then give the shape and ask the user to confirm it. Leave how to group or order the changes to slicing, and the details of each change to refinement.
 
