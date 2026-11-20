@@ -10,8 +10,10 @@ them into this repository.
 
 - Place each installable skill in a leaf directory whose name matches the
   `name` in its `SKILL.md` frontmatter.
-- Keep category directories, including `skills/boundary-model/`, free of a
-  `SKILL.md` so discovery continues into their child directories.
+- Keep category directories free of a `SKILL.md` so discovery continues into
+  their child directories.
+- Keep `skills/boundary-model/` as a pointer only. The boundary model skills
+  live in `meaningfool/boundary-model`; add or change them there.
 - Keep human-facing documentation at the repository or category level. Keep
   only agent instructions and necessary resources inside a skill directory.
 
