@@ -7,27 +7,9 @@ group related skills are categories and do not contain a `SKILL.md`.
 
 ## Boundary model
 
-The skills in `skills/boundary-model/` form a related toolkit rather than a
-mandatory linear workflow:
-
-- `use-boundary-model` defines the model and its vocabulary.
-- `extract-boundaries` maps an existing system's boundaries from its repository.
-- `review-boundaries` walks a person through a map, level by level, with still
-  images and short questions.
-- `update-boundaries` brings a map up to date with what changed since its
-  revision.
-- `visualize-boundaries` checks a map and draws it as a page or as still images.
-- `shape-boundaries` expresses a change as the boundary changes it leads to.
-- `slice` compares ways to divide a change into work, along its boundary
-  changes when it has them.
-- `refine` settles the details of a change: its expected behavior and design
-  decisions.
-- `to-issues` publishes slices or changes as GitHub issues, each with its proof
-  of done.
-
-`slice`, `refine`, and `to-issues` also work for changes not described with the
-boundary model. See [the category README](skills/boundary-model/README.md) for
-how the skills fit together.
+The boundary model skills moved, with their history, to
+[meaningfool/boundary-model](https://github.com/meaningfool/boundary-model).
+Install them from there.
 
 ## Standalone skills
 
